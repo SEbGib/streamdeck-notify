@@ -1,0 +1,65 @@
+deck:
+  brightness: 70
+  refresh_interval: 30  # seconds
+
+# Button layout (Stream Deck MK.2 = 3 rows x 5 cols, 0-14)
+# Row 1: notifications
+# Row 2: notifications (continued)
+# Row 3: actions / system
+
+buttons:
+  0:
+    plugin: slack
+    label: "Slack"
+    icon: "slack.png"
+    action: "xdg-open https://app.slack.com"
+
+  1:
+    plugin: google_calendar
+    label: "Agenda"
+    icon: "calendar.png"
+    action: "xdg-open https://calendar.google.com"
+
+  2:
+    plugin: gmail
+    label: "Gmail"
+    icon: "gmail.png"
+    action: "xdg-open https://mail.google.com"
+
+  3:
+    plugin: gitlab
+    label: "GitLab"
+    icon: "gitlab.png"
+    action: "xdg-open https://gitlab.com/dashboard/merge_requests?assignee_username=current_user"
+
+  4:
+    plugin: github
+    label: "GitHub"
+    icon: "github.png"
+    action: "xdg-open https://github.com/notifications"
+
+# Plugin-specific configuration
+plugins:
+  slack:
+    # Method: "api" (needs token) or "dbus" (monitors desktop notifications)
+    method: "dbus"
+    # Only needed if method is "api":
+    # token: "${SLACK_TOKEN}"
+    # channels: ["general", "team-retail"]
+
+  google_calendar:
+    credentials_file: "~/.config/streamdeck-notify/google_credentials.json"
+    token_file: "~/.config/streamdeck-notify/google_token.json"
+    lookahead_minutes: 60
+
+  gmail:
+    credentials_file: "~/.config/streamdeck-notify/google_credentials.json"
+    token_file: "~/.config/streamdeck-notify/google_token.json"
+    labels: ["INBOX"]
+
+  gitlab:
+    # Uses glab CLI token automatically
+    host: "gitlab.com"
+
+  github:
+    # Uses gh CLI token automatically

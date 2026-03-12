@@ -1,0 +1,20 @@
+{
+  "name": "Notify Center",
+  "version": "1.0.0",
+  "minimum-app-version": "1.5.0",
+  "app-version": "1.5.0-beta.11",
+  "id": "com_sgiband_NotifyCenter",
+  "github": "https://github.com/sgiband/streamdeck-notify",
+  "descriptions": {
+    "en_US": "Notification center for Slack, GitHub, GitLab, Gmail and Google Calendar.",
+    "fr_FR": "Centre de notifications pour Slack, GitHub, GitLab, Gmail et Google Calendar."
+  },
+  "short-descriptions": {
+    "en_US": "Unified notification center for your Stream Deck.",
+    "fr_FR": "Centre de notifications unifié pour votre Stream Deck."
+  },
+  "tags": [
+    "Notifications",
+    "Utility"
+  ]
+}

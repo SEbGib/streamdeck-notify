@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Secrets
+*.json
+!manifest.json
+!locales/*.json
+!package.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

@@ -1,0 +1,16 @@
+[Unit]
+Description=Stream Deck Notification Bridge
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/streamdeck-notify
+ExecStart=%h/projects/streamdeck-notify/.venv/bin/python -m src.bridge
+Restart=on-failure
+RestartSec=5
+Environment=DISPLAY=:0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+
+[Install]
+WantedBy=default.target
