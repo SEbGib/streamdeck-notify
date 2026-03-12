@@ -20,7 +20,9 @@ from gi.repository import Adw, Gtk
 from loguru import logger as log
 from PIL import Image, ImageDraw, ImageFont
 
+from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.ActionCore import ActionCore
+from src.backend.PluginManager.EventAssigner import EventAssigner
 
 from ..globals import SOURCES, SOURCE_NAMES, SOURCE_URLS, SOURCE_ICONS
 from ..internal.bridge_client import BridgeClient
@@ -43,6 +45,16 @@ class NotifyAction(ActionCore):
         self._last_state: dict = {}
         self._bridge_down: bool = False
         self._icon_path: Path | None = None
+
+        self.create_event_assigners()
+
+    def create_event_assigners(self):
+        self.add_event_assigner(EventAssigner(
+            id="open-notification",
+            ui_label="Open",
+            default_events=[Input.Key.Events.DOWN],
+            callback=self._on_press,
+        ))
 
     def get_config_rows(self) -> list:
         """Build configuration UI rows."""
@@ -110,8 +122,9 @@ class NotifyAction(ActionCore):
                 self.set_bottom_label("Bridge?")
                 log.error(f"NotifyAction tick error: {e}")
 
-    def on_key_down(self):
+    def _on_press(self, data=None):
         """Button pressed — reset count and open URL."""
+        log.info(f"NotifyAction press: source={self._source!r}")
         if self._source:
             BridgeClient.post_action(self._source, self._bridge_url)
 
@@ -119,6 +132,7 @@ class NotifyAction(ActionCore):
         if not url and self._source:
             url = SOURCE_URLS.get(self._source, "")
         if url:
+            log.info(f"NotifyAction opening: {url}")
             try:
                 subprocess.Popen(
                     ["xdg-open", url],

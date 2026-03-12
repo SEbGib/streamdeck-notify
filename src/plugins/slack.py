@@ -82,20 +82,32 @@ class SlackPlugin(BasePlugin):
                     and msg.member == "Notify"
                     and msg.body
                 ):
-                    app_name = msg.body[0] if len(msg.body) > 0 else ""
-                    if "slack" in app_name.lower():
-                        summary = msg.body[3] if len(msg.body) > 3 else ""
-                        body = msg.body[4] if len(msg.body) > 4 else ""
-                        self._dbus_count += 1
-                        self._dbus_last_summary = str(summary)
-                        self._dbus_last_channel = str(body)[:30] if body else ""
-                        self._last_activity = time.time()
-                        self._dbus_messages.append({
-                            "summary": str(summary),
-                            "body": str(body)[:100],
-                            "time": time.time(),
-                        })
-                        logger.debug("Slack notification: %s - %s", summary, body)
+                    app_name = str(msg.body[0]) if len(msg.body) > 0 else ""
+                    summary = str(msg.body[3]) if len(msg.body) > 3 else ""
+                    body = str(msg.body[4]) if len(msg.body) > 4 else ""
+                    app_lower = app_name.lower()
+
+                    # Match Slack app directly, or browser notifications about Slack
+                    is_slack = (
+                        "slack" in app_lower
+                        or (
+                            app_lower in ("google chrome", "chrome", "chromium", "firefox")
+                            and "slack" in summary.lower()
+                        )
+                    )
+                    if not is_slack:
+                        return
+
+                    self._dbus_count += 1
+                    self._dbus_last_summary = summary
+                    self._dbus_last_channel = body[:30] if body else ""
+                    self._last_activity = time.time()
+                    self._dbus_messages.append({
+                        "summary": summary,
+                        "body": body[:100],
+                        "time": time.time(),
+                    })
+                    logger.info("Slack notification [%s]: %s - %s", app_name, summary, body[:50])
 
             bus.add_message_handler(on_message)
             await asyncio.get_event_loop().create_future()
