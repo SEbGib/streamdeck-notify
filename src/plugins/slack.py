@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 class SlackPlugin(BasePlugin):
     """Slack notifications via D-Bus monitoring or API."""
 
+    # DND-active color (muted purple)
+    COLOR_DEFAULT = "#4A154B"
+    COLOR_DND = "#8B7A8E"
+
     def __init__(self, config: dict):
         super().__init__(config)
         self.method = config.get("method", "dbus")
@@ -31,6 +35,10 @@ class SlackPlugin(BasePlugin):
         self._dbus_messages: deque[dict] = deque(maxlen=20)
         self._monitor_task: asyncio.Task | None = None
         self._last_activity: float = 0
+        # Per-channel notification counts
+        self._channels: dict[str, int] = {}
+        # DND mode — when active, new notifications are ignored
+        self._dnd_active: bool = False
 
     async def setup(self) -> None:
         if self.method == "dbus":
@@ -98,14 +106,24 @@ class SlackPlugin(BasePlugin):
                     if not is_slack:
                         return
 
+                    # In DND mode, silently ignore new notifications
+                    if self._dnd_active:
+                        logger.debug("Slack DND active, ignoring: %s", summary[:30])
+                        return
+
                     self._dbus_count += 1
                     self._dbus_last_summary = summary
-                    self._dbus_last_channel = body[:30] if body else ""
+                    # Use body as channel identifier; fall back to summary
+                    channel = body[:30].strip() if body else summary[:30].strip()
+                    self._dbus_last_channel = channel
+                    if channel:
+                        self._channels[channel] = self._channels.get(channel, 0) + 1
                     self._last_activity = time.time()
                     self._dbus_messages.append({
                         "summary": summary,
                         "body": body[:100],
                         "time": time.time(),
+                        "channel": channel,
                     })
                     logger.info("Slack notification [%s]: %s - %s", app_name, summary, body[:50])
 
@@ -119,9 +137,31 @@ class SlackPlugin(BasePlugin):
 
     def _state_from_dbus(self) -> NotificationState:
         count = self._dbus_count
-        # Show channel/sender or last message preview
+
+        # DND mode overrides everything
+        if self._dnd_active:
+            return NotificationState(
+                count=count,
+                label="Slack",
+                subtitle="DND",
+                urgent=False,
+                color=self.COLOR_DND,
+                extra={"dnd": True, "channels": dict(self._channels)},
+            )
+
+        # Build batched summary as label suffix
+        num_channels = len(self._channels)
+        if num_channels == 1:
+            chan_name, chan_count = next(iter(self._channels.items()))
+            label = f"{chan_name} ({chan_count})"
+        elif num_channels > 1:
+            label = f"{num_channels} canaux"
+        else:
+            label = "Slack"
+
+        # Subtitle: latest message preview
         if self._dbus_last_summary:
-            subtitle = self._dbus_last_summary[:20]
+            subtitle = self._dbus_last_summary[:25]
         else:
             subtitle = ""
 
@@ -130,25 +170,39 @@ class SlackPlugin(BasePlugin):
 
         return NotificationState(
             count=count,
-            label="Slack",
+            label=label,
             subtitle=subtitle,
             urgent=count > 0 and recent,
-            color="#4A154B",
+            color=self.COLOR_DEFAULT,
             extra={
                 "messages": list(self._dbus_messages),
                 "last_channel": self._dbus_last_channel,
+                "channels": dict(self._channels),
+                "dnd": False,
             },
         )
 
     def reset_count(self) -> None:
-        """Reset notification count (e.g., after pressing the button)."""
+        """Reset notification count and all channel tracking."""
         self._dbus_count = 0
         self._dbus_last_summary = ""
         self._dbus_last_channel = ""
         self._dbus_messages.clear()
+        self._channels.clear()
 
     async def on_press(self) -> None:
-        self.reset_count()
+        """Smart press: reset count > toggle DND on > toggle DND off."""
+        if self._dbus_count > 0:
+            # Has unread notifications — clear them
+            self.reset_count()
+        elif not self._dnd_active:
+            # No notifications, DND off — enable DND
+            self._dnd_active = True
+            logger.info("Slack DND enabled")
+        else:
+            # DND active — disable it
+            self._dnd_active = False
+            logger.info("Slack DND disabled")
 
     # --- API method ---
 

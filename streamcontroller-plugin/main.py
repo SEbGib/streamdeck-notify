@@ -8,6 +8,7 @@ from src.backend.PluginManager.PluginBase import PluginBase
 from src.backend.DeckManagement.InputIdentifier import Input
 
 from .actions.NotifyAction import NotifyAction
+from .actions.PomodoroAction import PomodoroAction
 from .globals import Icons
 
 
@@ -37,6 +38,23 @@ class NotifyCenter(PluginBase):
             log.info("NotifyCenter: action holder added")
         except Exception as e:
             log.error(f"NotifyCenter: action holder failed: {e}")
+
+        try:
+            pomodoro_action = ActionHolder(
+                plugin_base=self,
+                action_core=PomodoroAction,
+                action_id_suffix="PomodoroAction",
+                action_name="Pomodoro Timer",
+                action_support={
+                    Input.Key: ActionInputSupport.SUPPORTED,
+                    Input.Dial: ActionInputSupport.UNSUPPORTED,
+                    Input.Touchscreen: ActionInputSupport.UNTESTED,
+                },
+            )
+            self.add_action_holder(pomodoro_action)
+            log.info("NotifyCenter: pomodoro action holder added")
+        except Exception as e:
+            log.error(f"NotifyCenter: pomodoro action holder failed: {e}")
 
         self.register()
         log.info("NotifyCenter: register() done")

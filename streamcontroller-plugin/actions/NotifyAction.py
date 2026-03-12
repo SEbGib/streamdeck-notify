@@ -55,6 +55,12 @@ class NotifyAction(ActionCore):
             default_events=[Input.Key.Events.DOWN],
             callback=self._on_press,
         ))
+        self.add_event_assigner(EventAssigner(
+            id="reset-notification",
+            ui_label="Reset",
+            default_events=[Input.Key.Events.HOLD_START],
+            callback=self._on_reset,
+        ))
 
     def get_config_rows(self) -> list:
         """Build configuration UI rows."""
@@ -121,6 +127,14 @@ class NotifyAction(ActionCore):
                 self._bridge_down = True
                 self.set_bottom_label("Bridge?")
                 log.error(f"NotifyAction tick error: {e}")
+
+    def _on_reset(self, data=None):
+        """Long press — reset count without opening URL."""
+        log.info(f"NotifyAction reset: source={self._source!r}")
+        if self._source:
+            BridgeClient.post_action(self._source, self._bridge_url)
+        self.set_bottom_label("Reset!")
+        # Next tick will clear/update the label automatically
 
     def _on_press(self, data=None):
         """Button pressed — reset count and open URL."""

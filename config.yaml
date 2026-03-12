@@ -38,6 +38,33 @@ buttons:
     icon: "github.png"
     action: "xdg-open https://github.com/notifications"
 
+  # Row 2: monitoring & utilities
+  5:
+    plugin: cicd
+    label: "CI/CD"
+    icon: "cicd.png"
+    action: "xdg-open https://gitlab.com/dashboard/pipelines"
+
+  6:
+    plugin: docker
+    label: "Docker"
+    icon: "docker.png"
+
+  7:
+    plugin: weather
+    label: "Météo"
+    icon: "weather.png"
+
+  8:
+    plugin: system
+    label: "Système"
+    icon: "system.png"
+
+  9:
+    plugin: spotify
+    label: "Spotify"
+    icon: "spotify.png"
+
 # Plugin-specific configuration
 plugins:
   slack:
@@ -62,3 +89,27 @@ plugins:
 
   github:
     # Uses gh CLI token automatically
+
+  cicd:
+    # Uses glab CLI token automatically
+    # projects: ["group/project"]  # Optional: limit to specific projects
+    max_pipelines: 10
+
+  docker:
+    # Monitors local Docker containers
+    # containers: ["web", "db"]  # Optional: filter specific containers
+
+  weather:
+    # OpenWeatherMap API
+    # api_key: "${OPENWEATHER_API_KEY}"
+    # city: "Paris"
+    # units: "metric"
+    # lang: "fr"
+
+  system:
+    # CPU + RAM monitoring via psutil or /proc
+    # warn_cpu: 80  # % threshold for urgent
+    # warn_ram: 85  # % threshold for urgent
+
+  spotify:
+    # MPRIS2 D-Bus (auto-detects player: spotify, chrome, firefox, vlc)

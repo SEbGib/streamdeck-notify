@@ -27,7 +27,7 @@ DEFAULT_PORT = 9120
 
 
 class NotifyBridge:
-    """HTTP bridge that polls sources and exposes their state."""
+    """HTTP bridge that polls sources and exposes their state via REST + SSE."""
 
     def __init__(self, config_path: Path = CONFIG_PATH):
         with open(config_path) as f:
@@ -37,20 +37,36 @@ class NotifyBridge:
         self._port = self.config.get("bridge", {}).get("port", DEFAULT_PORT)
         self.plugins: dict[str, BasePlugin] = {}
         self._tasks: list[asyncio.Task] = []
+        self._sse_clients: list[web.StreamResponse] = []
+        self._last_states: dict[str, dict] = {}
 
     def _init_plugins(self) -> None:
-        """Initialize plugins from config."""
+        """Initialize plugins from config.
+
+        Registers plugins referenced in buttons: section AND any plugin
+        that has a configuration entry in plugins: section.
+        """
         plugin_configs = self.config.get("plugins", {})
+
+        # Plugins from button assignments
         for key_str, btn_config in self.config.get("buttons", {}).items():
             plugin_name = btn_config.get("plugin")
             if plugin_name not in PLUGIN_REGISTRY:
                 logger.warning("Unknown plugin: %s", plugin_name)
                 continue
             if plugin_name in self.plugins:
-                continue  # Already registered
-
+                continue
             merged_config = {**(plugin_configs.get(plugin_name) or {}), **btn_config}
             self.plugins[plugin_name] = PLUGIN_REGISTRY[plugin_name](merged_config)
+
+        # Auto-register configured plugins not yet loaded (no button needed)
+        for plugin_name, plugin_cfg in plugin_configs.items():
+            if plugin_name in self.plugins:
+                continue
+            if plugin_name not in PLUGIN_REGISTRY:
+                logger.warning("Unknown plugin in config: %s", plugin_name)
+                continue
+            self.plugins[plugin_name] = PLUGIN_REGISTRY[plugin_name](plugin_cfg or {})
 
     async def handle_status(self, request: web.Request) -> web.Response:
         """GET /status — return all plugin states as JSON."""
@@ -72,6 +88,60 @@ class NotifyBridge:
         await plugin.on_press()
         return web.json_response({"ok": True})
 
+    async def handle_events(self, request: web.Request) -> web.StreamResponse:
+        """GET /events — SSE stream of state changes."""
+        resp = web.StreamResponse()
+        resp.headers["Content-Type"] = "text/event-stream"
+        resp.headers["Cache-Control"] = "no-cache"
+        resp.headers["Connection"] = "keep-alive"
+        await resp.prepare(request)
+
+        # Send current state as initial event
+        data = {
+            name: plugin.state.to_dict()
+            for name, plugin in self.plugins.items()
+        }
+        await resp.write(f"event: state\ndata: {json.dumps(data)}\n\n".encode())
+
+        self._sse_clients.append(resp)
+        try:
+            # Keep connection alive until client disconnects
+            while True:
+                await asyncio.sleep(15)
+                try:
+                    await resp.write(b": keepalive\n\n")
+                except (ConnectionResetError, ConnectionError):
+                    break
+        finally:
+            self._sse_clients.remove(resp)
+
+        return resp
+
+    async def _broadcast_changes(self) -> None:
+        """Check for state changes and push to SSE clients."""
+        while True:
+            await asyncio.sleep(1)
+            if not self._sse_clients:
+                continue
+
+            changed = {}
+            for name, plugin in self.plugins.items():
+                current = plugin.state.to_dict()
+                if current != self._last_states.get(name):
+                    self._last_states[name] = current
+                    changed[name] = current
+
+            if changed:
+                payload = f"event: state\ndata: {json.dumps(changed)}\n\n".encode()
+                dead = []
+                for client in self._sse_clients:
+                    try:
+                        await client.write(payload)
+                    except (ConnectionResetError, ConnectionError):
+                        dead.append(client)
+                for client in dead:
+                    self._sse_clients.remove(client)
+
     async def run(self) -> None:
         """Start polling loops and HTTP server."""
         logging.basicConfig(
@@ -89,9 +159,15 @@ class NotifyBridge:
             )
             self._tasks.append(task)
 
+        # Start SSE broadcast task
+        self._tasks.append(
+            asyncio.create_task(self._broadcast_changes(), name="sse-broadcast")
+        )
+
         # Setup HTTP server
         app = web.Application()
         app.router.add_get("/status", self.handle_status)
+        app.router.add_get("/events", self.handle_events)
         app.router.add_post("/action/{name}", self.handle_action)
 
         runner = web.AppRunner(app)

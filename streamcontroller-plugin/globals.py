@@ -8,6 +8,12 @@ class Icons(StrEnum):
     GITLAB = "gitlab"
     GMAIL = "gmail"
     CALENDAR = "calendar"
+    CICD = "cicd"
+    DOCKER = "docker"
+    WEATHER = "weather"
+    SYSTEM = "system"
+    SPOTIFY = "spotify"
+    POMODORO = "pomodoro"
 
 
 class Colors(StrEnum):
@@ -22,6 +28,11 @@ SOURCES = {
     "gmail": ("Gmail", "https://mail.google.com", Icons.GMAIL),
     "gitlab": ("GitLab", "https://gitlab.com/dashboard/merge_requests", Icons.GITLAB),
     "github": ("GitHub", "https://github.com/notifications", Icons.GITHUB),
+    "cicd": ("CI/CD", "https://gitlab.com/dashboard/pipelines", Icons.CICD),
+    "docker": ("Docker", "", Icons.DOCKER),
+    "weather": ("Météo", "", Icons.WEATHER),
+    "system": ("Système", "", Icons.SYSTEM),
+    "spotify": ("Spotify", "", Icons.SPOTIFY),
 }
 
 SOURCE_NAMES = {k: v[0] for k, v in SOURCES.items()}
