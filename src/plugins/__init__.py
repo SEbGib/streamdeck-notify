@@ -20,6 +20,8 @@ PLUGIN_REGISTRY: dict[str, type[BasePlugin]] = {
     "docker": DockerStatusPlugin,
     "weather": WeatherPlugin,
     "system": SystemPlugin,
+    "system_cpu": SystemPlugin,
+    "system_ram": SystemPlugin,
     "spotify": SpotifyPlugin,
 }
 

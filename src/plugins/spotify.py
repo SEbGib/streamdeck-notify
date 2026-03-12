@@ -94,26 +94,66 @@ class SpotifyPlugin(BasePlugin):
         return await loop.run_in_executor(None, self._detect_player_sync)
 
     def _detect_player_sync(self) -> str | None:
-        """Blocking: check which MPRIS2 player is available."""
-        candidates = [self._player] if self._player else _DEFAULT_PLAYERS
-        for player in candidates:
+        """Blocking: find an active MPRIS2 player on the session bus.
+
+        Lists all bus names and matches by prefix (handles .instanceXXX suffixes
+        like chromium.instance13744 for Deezer/YouTube in browser).
+        """
+        # Get all bus names
+        try:
+            result = subprocess.run(
+                ["gdbus", "call", "--session",
+                 "--dest", "org.freedesktop.DBus",
+                 "--object-path", "/org/freedesktop/DBus",
+                 "--method", "org.freedesktop.DBus.ListNames"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode != 0:
+                return None
+        except (subprocess.TimeoutExpired, OSError):
+            return None
+
+        # Extract all MPRIS2 bus names
+        mpris_names = re.findall(r"'(org\.mpris\.MediaPlayer2\.[^']+)'", result.stdout)
+        if not mpris_names:
+            return None
+
+        # Try configured player first, then defaults — match by prefix
+        prefixes = [self._player] if self._player else _DEFAULT_PLAYERS
+        for prefix in prefixes:
+            for name in mpris_names:
+                if name == prefix or name.startswith(prefix + "."):
+                    # Verify it responds
+                    try:
+                        check = subprocess.run(
+                            ["gdbus", "call", "--session",
+                             "--dest", name,
+                             "--object-path", "/org/mpris/MediaPlayer2",
+                             "--method", "org.freedesktop.DBus.Properties.Get",
+                             "org.mpris.MediaPlayer2.Player", "PlaybackStatus"],
+                            capture_output=True, text=True, timeout=3,
+                        )
+                        if check.returncode == 0:
+                            return name
+                    except (subprocess.TimeoutExpired, OSError):
+                        continue
+
+        # Fallback: try any MPRIS2 player found
+        for name in mpris_names:
             try:
-                result = subprocess.run(
-                    [
-                        "gdbus", "call", "--session",
-                        "--dest", player,
-                        "--object-path", "/org/mpris/MediaPlayer2",
-                        "--method", "org.freedesktop.DBus.Properties.Get",
-                        "org.mpris.MediaPlayer2.Player", "PlaybackStatus",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=3,
+                check = subprocess.run(
+                    ["gdbus", "call", "--session",
+                     "--dest", name,
+                     "--object-path", "/org/mpris/MediaPlayer2",
+                     "--method", "org.freedesktop.DBus.Properties.Get",
+                     "org.mpris.MediaPlayer2.Player", "PlaybackStatus"],
+                    capture_output=True, text=True, timeout=3,
                 )
-                if result.returncode == 0:
-                    return player
+                if check.returncode == 0:
+                    return name
             except (subprocess.TimeoutExpired, OSError):
                 continue
+
         return None
 
     async def _fetch_metadata(self) -> dict[str, str]:

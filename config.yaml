@@ -56,11 +56,16 @@ buttons:
     icon: "weather.png"
 
   8:
-    plugin: system
-    label: "Système"
+    plugin: system_cpu
+    label: "CPU"
     icon: "system.png"
 
   9:
+    plugin: system_ram
+    label: "RAM"
+    icon: "system.png"
+
+  10:
     plugin: spotify
     label: "Spotify"
     icon: "spotify.png"
@@ -106,10 +111,13 @@ plugins:
     # units: "metric"
     # lang: "fr"
 
-  system:
-    # CPU + RAM monitoring via psutil or /proc
-    # warn_cpu: 80  # % threshold for urgent
-    # warn_ram: 85  # % threshold for urgent
+  system_cpu:
+    metric: "cpu"
+    # warn: 80  # % threshold for warning color
+
+  system_ram:
+    metric: "ram"
+    # warn: 85  # % threshold for warning color
 
   spotify:
     # MPRIS2 D-Bus (auto-detects player: spotify, chrome, firefox, vlc)

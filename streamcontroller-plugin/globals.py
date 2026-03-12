@@ -32,6 +32,8 @@ SOURCES = {
     "docker": ("Docker", "", Icons.DOCKER),
     "weather": ("Météo", "", Icons.WEATHER),
     "system": ("Système", "", Icons.SYSTEM),
+    "system_cpu": ("CPU", "", Icons.SYSTEM),
+    "system_ram": ("RAM", "", Icons.SYSTEM),
     "spotify": ("Spotify", "", Icons.SPOTIFY),
 }
 
