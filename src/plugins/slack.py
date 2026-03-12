@@ -3,13 +3,16 @@
 Supports two methods:
 - "dbus": Monitor desktop notifications from Slack app (no API token needed)
 - "api": Use Slack Web API (needs bot/user token with appropriate scopes)
+
+D-Bus mode also tracks notification channels and provides message previews.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import re
+import time
+from collections import deque
 
 from .base import BasePlugin, NotificationState
 
@@ -24,11 +27,15 @@ class SlackPlugin(BasePlugin):
         self.method = config.get("method", "dbus")
         self._dbus_count = 0
         self._dbus_last_summary = ""
+        self._dbus_last_channel = ""
+        self._dbus_messages: deque[dict] = deque(maxlen=20)
         self._monitor_task: asyncio.Task | None = None
+        self._last_activity: float = 0
 
     async def setup(self) -> None:
         if self.method == "dbus":
             self._monitor_task = asyncio.create_task(self._monitor_dbus())
+            logger.info("Slack: D-Bus monitoring started")
         elif self.method == "api":
             token = self.config.get("token", "")
             if not token:
@@ -53,7 +60,6 @@ class SlackPlugin(BasePlugin):
 
             bus = await MessageBus().connect()
 
-            # Subscribe to org.freedesktop.Notifications
             reply = await bus.call(
                 Message(
                     destination="org.freedesktop.DBus",
@@ -79,12 +85,19 @@ class SlackPlugin(BasePlugin):
                     app_name = msg.body[0] if len(msg.body) > 0 else ""
                     if "slack" in app_name.lower():
                         summary = msg.body[3] if len(msg.body) > 3 else ""
+                        body = msg.body[4] if len(msg.body) > 4 else ""
                         self._dbus_count += 1
                         self._dbus_last_summary = str(summary)
-                        logger.debug("Slack notification: %s", summary)
+                        self._dbus_last_channel = str(body)[:30] if body else ""
+                        self._last_activity = time.time()
+                        self._dbus_messages.append({
+                            "summary": str(summary),
+                            "body": str(body)[:100],
+                            "time": time.time(),
+                        })
+                        logger.debug("Slack notification: %s - %s", summary, body)
 
             bus.add_message_handler(on_message)
-            # Keep listening
             await asyncio.get_event_loop().create_future()
 
         except ImportError:
@@ -94,18 +107,33 @@ class SlackPlugin(BasePlugin):
 
     def _state_from_dbus(self) -> NotificationState:
         count = self._dbus_count
+        # Show channel/sender or last message preview
+        if self._dbus_last_summary:
+            subtitle = self._dbus_last_summary[:20]
+        else:
+            subtitle = ""
+
+        # Determine urgency: new messages in last 5 minutes
+        recent = time.time() - self._last_activity < 300 if self._last_activity else False
+
         return NotificationState(
             count=count,
             label="Slack",
-            subtitle=self._dbus_last_summary[:20] if self._dbus_last_summary else "",
-            urgent=count > 0,
+            subtitle=subtitle,
+            urgent=count > 0 and recent,
             color="#4A154B",
+            extra={
+                "messages": list(self._dbus_messages),
+                "last_channel": self._dbus_last_channel,
+            },
         )
 
     def reset_count(self) -> None:
         """Reset notification count (e.g., after pressing the button)."""
         self._dbus_count = 0
         self._dbus_last_summary = ""
+        self._dbus_last_channel = ""
+        self._dbus_messages.clear()
 
     async def on_press(self) -> None:
         self.reset_count()
@@ -126,7 +154,6 @@ class SlackPlugin(BasePlugin):
 
         try:
             async with aiohttp.ClientSession() as session:
-                # Get conversations with unread
                 async with session.get(
                     "https://slack.com/api/conversations.list",
                     headers=headers,
@@ -155,7 +182,7 @@ class SlackPlugin(BasePlugin):
         return NotificationState(
             count=total_unread,
             label="Slack",
-            subtitle=f"{'@mention' if has_mention else ''}",
+            subtitle="@mention" if has_mention else "",
             urgent=has_mention,
             color="#4A154B",
         )

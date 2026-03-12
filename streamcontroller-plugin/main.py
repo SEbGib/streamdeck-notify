@@ -8,7 +8,7 @@ from src.backend.PluginManager.PluginBase import PluginBase
 from src.backend.DeckManagement.InputIdentifier import Input
 
 from .actions.NotifyAction import NotifyAction
-from .globals import Icons, SOURCES
+from .globals import Icons
 
 
 class NotifyCenter(PluginBase):
@@ -42,4 +42,6 @@ class NotifyCenter(PluginBase):
         log.info("NotifyCenter: register() done")
 
     def _init_icons(self):
-        self.add_icon(Icons.MAIN, self.get_asset_path("main_icon.png"))
+        for icon_key in Icons:
+            path = self.get_asset_path(f"{icon_key.value}.png")
+            self.add_icon(icon_key, path)
