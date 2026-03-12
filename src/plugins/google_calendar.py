@@ -1,14 +1,22 @@
-"""Google Calendar plugin — shows upcoming events."""
+"""Google Calendar plugin — shows upcoming events.
+
+Uses GNOME Online Accounts for authentication (no OAuth app needed).
+"""
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from .base import BasePlugin, NotificationState
 
 logger = logging.getLogger(__name__)
+
+CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 
 
 class GoogleCalendarPlugin(BasePlugin):
@@ -16,45 +24,57 @@ class GoogleCalendarPlugin(BasePlugin):
 
     def __init__(self, config: dict):
         super().__init__(config)
-        self._service = None
+        self._identity = config.get("identity")  # Optional email filter
+        self._goa_path = None
 
     async def setup(self) -> None:
-        self._service = _build_service(self.config)
+        from .goa import find_google_account
+        self._goa_path = find_google_account(self._identity)
+        if self._goa_path:
+            logger.info("Calendar: using GOA account %s", self._goa_path)
+        else:
+            logger.warning("Calendar: no GOA Google account found")
 
     async def poll(self) -> NotificationState:
-        if not self._service:
+        if not self._goa_path:
             return NotificationState(label="Agenda", subtitle="No auth", color="#4285F4")
 
-        import asyncio
-
         loop = asyncio.get_event_loop()
-        events = await loop.run_in_executor(None, self._fetch_events)
+        try:
+            events = await loop.run_in_executor(None, self._fetch_events)
+        except Exception:
+            logger.exception("Calendar fetch failed")
+            return NotificationState(label="Agenda", subtitle="Erreur", color="#4285F4")
 
         if not events:
             return NotificationState(
-                count=0,
-                label="Agenda",
-                subtitle="Rien",
-                color="#4285F4",
+                count=0, label="Agenda", subtitle="Rien", color="#4285F4",
             )
 
-        next_event = events[0]
+        # Skip all-day events for "next event" display — prefer timed events
+        timed = [e for e in events if "dateTime" in e.get("start", {})]
+        next_event = timed[0] if timed else events[0]
+        is_all_day = "dateTime" not in next_event.get("start", {})
         start = next_event["start"].get("dateTime", next_event["start"].get("date", ""))
         summary = next_event.get("summary", "Sans titre")[:18]
 
-        minutes_until = _minutes_until(start)
-        if minutes_until is not None and minutes_until <= 5:
-            subtitle = f"MAINTENANT"
-            urgent = True
-        elif minutes_until is not None and minutes_until <= 15:
-            subtitle = f"Dans {minutes_until}min"
-            urgent = True
-        elif minutes_until is not None:
-            subtitle = f"Dans {minutes_until}min"
-            urgent = False
-        else:
+        if is_all_day:
             subtitle = summary
             urgent = False
+        else:
+            minutes_until = _minutes_until(start)
+            if minutes_until is not None and minutes_until <= 5:
+                subtitle = "MAINTENANT"
+                urgent = True
+            elif minutes_until is not None and minutes_until <= 15:
+                subtitle = f"Dans {minutes_until}min"
+                urgent = True
+            elif minutes_until is not None:
+                subtitle = f"Dans {minutes_until}min"
+                urgent = False
+            else:
+                subtitle = summary
+                urgent = False
 
         return NotificationState(
             count=len(events),
@@ -65,61 +85,30 @@ class GoogleCalendarPlugin(BasePlugin):
         )
 
     def _fetch_events(self) -> list[dict]:
+        from .goa import get_access_token
+        token = get_access_token(self._goa_path)
+        if not token:
+            return []
+
         now = datetime.now(timezone.utc)
         lookahead = self.config.get("lookahead_minutes", 60)
         time_max = now + timedelta(minutes=lookahead)
 
-        result = (
-            self._service.events()
-            .list(
-                calendarId="primary",
-                timeMin=now.isoformat(),
-                timeMax=time_max.isoformat(),
-                maxResults=5,
-                singleEvents=True,
-                orderBy="startTime",
-            )
-            .execute()
-        )
-        return result.get("items", [])
+        params = urllib.parse.urlencode({
+            "timeMin": now.isoformat(),
+            "timeMax": time_max.isoformat(),
+            "maxResults": 5,
+            "singleEvents": "true",
+            "orderBy": "startTime",
+        })
+        url = f"{CALENDAR_API}/calendars/primary/events?{params}"
 
+        req = urllib.request.Request(url)
+        req.add_header("Authorization", f"Bearer {token}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
 
-def _build_service(config: dict):
-    """Build Google Calendar API service with OAuth."""
-    try:
-        from google.oauth2.credentials import Credentials
-        from google_auth_oauthlib.flow import InstalledAppFlow
-        from google.auth.transport.requests import Request
-        from googleapiclient.discovery import build
-    except ImportError:
-        logger.error("Google API dependencies not installed")
-        return None
-
-    creds_file = Path(config.get("credentials_file", "")).expanduser()
-    token_file = Path(config.get("token_file", "")).expanduser()
-    scopes = [
-        "https://www.googleapis.com/auth/calendar.readonly",
-        "https://www.googleapis.com/auth/gmail.readonly",
-    ]
-
-    creds = None
-    if token_file.exists():
-        creds = Credentials.from_authorized_user_file(str(token_file), scopes)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        elif creds_file.exists():
-            flow = InstalledAppFlow.from_client_secrets_file(str(creds_file), scopes)
-            creds = flow.run_local_server(port=0)
-        else:
-            logger.warning("No Google credentials file at %s", creds_file)
-            return None
-
-        token_file.parent.mkdir(parents=True, exist_ok=True)
-        token_file.write_text(creds.to_json())
-
-    return build("calendar", "v3", credentials=creds)
+        return data.get("items", [])
 
 
 def _minutes_until(iso_str: str) -> int | None:

@@ -82,6 +82,7 @@ class NotifyAction(ActionCore):
         self._action_url = settings.get("action_url", "")
         if not self._action_url and self._source:
             self._action_url = SOURCE_URLS.get(self._source, "")
+        log.info(f"NotifyAction ready: source={self._source!r}, url={self._action_url!r}")
         self._resolve_icon()
         self._update_display()
 

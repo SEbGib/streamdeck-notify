@@ -1,10 +1,15 @@
-"""Gmail plugin — shows unread email count."""
+"""Gmail plugin — shows unread email count.
+
+Uses GNOME Online Accounts for authentication via IMAP + XOAUTH2.
+The Gmail REST API requires explicit project activation, but IMAP works
+with any GOA token out of the box.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import imaplib
 import logging
-from pathlib import Path
 
 from .base import BasePlugin, NotificationState
 
@@ -16,17 +21,52 @@ class GmailPlugin(BasePlugin):
 
     def __init__(self, config: dict):
         super().__init__(config)
-        self._service = None
+        self._identity = config.get("identity")
+        self._goa_path = None
+        self._email = None
 
     async def setup(self) -> None:
-        self._service = _build_gmail_service(self.config)
+        from .goa import find_google_account
+        self._goa_path = find_google_account(self._identity)
+        if self._goa_path:
+            logger.info("Gmail: using GOA account %s", self._goa_path)
+            # Resolve email for IMAP auth
+            self._email = self._identity or self._resolve_email()
+        else:
+            logger.warning("Gmail: no GOA Google account found")
+
+    def _resolve_email(self) -> str | None:
+        """Extract email from GOA account properties."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                [
+                    "gdbus", "call", "--session",
+                    "--dest", "org.gnome.OnlineAccounts",
+                    "--object-path", self._goa_path,
+                    "--method", "org.freedesktop.DBus.Properties.Get",
+                    "org.gnome.OnlineAccounts.Account", "Identity",
+                ],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                # Output: (<'email@example.com'>,)
+                email = result.stdout.strip().split("'")[1]
+                return email
+        except Exception:
+            logger.exception("Failed to resolve GOA email")
+        return None
 
     async def poll(self) -> NotificationState:
-        if not self._service:
+        if not self._goa_path or not self._email:
             return NotificationState(label="Gmail", subtitle="No auth", color="#EA4335")
 
         loop = asyncio.get_event_loop()
-        unread = await loop.run_in_executor(None, self._fetch_unread)
+        try:
+            unread = await loop.run_in_executor(None, self._fetch_unread_imap)
+        except Exception:
+            logger.exception("Gmail fetch failed")
+            return NotificationState(label="Gmail", subtitle="Erreur", color="#EA4335")
 
         return NotificationState(
             count=unread,
@@ -36,58 +76,23 @@ class GmailPlugin(BasePlugin):
             color="#EA4335",
         )
 
-    def _fetch_unread(self) -> int:
-        """Get unread message count from Gmail."""
-        try:
-            labels = self.config.get("labels", ["INBOX"])
-            total = 0
-            for label_name in labels:
-                result = (
-                    self._service.users()
-                    .labels()
-                    .get(userId="me", id=label_name)
-                    .execute()
-                )
-                total += result.get("messagesUnread", 0)
-            return total
-        except Exception:
-            logger.exception("Gmail fetch failed")
+    def _fetch_unread_imap(self) -> int:
+        """Get unread message count via IMAP with XOAUTH2."""
+        from .goa import get_access_token
+        token = get_access_token(self._goa_path)
+        if not token:
             return 0
 
+        auth_string = f"user={self._email}\x01auth=Bearer {token}\x01\x01"
 
-def _build_gmail_service(config: dict):
-    """Build Gmail API service, reusing Calendar OAuth token."""
-    try:
-        from google.oauth2.credentials import Credentials
-        from google_auth_oauthlib.flow import InstalledAppFlow
-        from google.auth.transport.requests import Request
-        from googleapiclient.discovery import build
-    except ImportError:
-        logger.error("Google API dependencies not installed")
-        return None
-
-    creds_file = Path(config.get("credentials_file", "")).expanduser()
-    token_file = Path(config.get("token_file", "")).expanduser()
-    scopes = [
-        "https://www.googleapis.com/auth/calendar.readonly",
-        "https://www.googleapis.com/auth/gmail.readonly",
-    ]
-
-    creds = None
-    if token_file.exists():
-        creds = Credentials.from_authorized_user_file(str(token_file), scopes)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        elif creds_file.exists():
-            flow = InstalledAppFlow.from_client_secrets_file(str(creds_file), scopes)
-            creds = flow.run_local_server(port=0)
-        else:
-            logger.warning("No Google credentials file at %s", creds_file)
-            return None
-
-        token_file.parent.mkdir(parents=True, exist_ok=True)
-        token_file.write_text(creds.to_json())
-
-    return build("gmail", "v1", credentials=creds)
+        imap = imaplib.IMAP4_SSL("imap.gmail.com")
+        try:
+            imap.authenticate("XOAUTH2", lambda _: auth_string.encode())
+            imap.select("INBOX", readonly=True)
+            typ, data = imap.search(None, "UNSEEN")
+            return len(data[0].split()) if data[0] else 0
+        finally:
+            try:
+                imap.logout()
+            except Exception:
+                pass

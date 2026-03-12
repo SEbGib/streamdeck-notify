@@ -48,14 +48,13 @@ plugins:
     # channels: ["general", "team-retail"]
 
   google_calendar:
-    credentials_file: "~/.config/streamdeck-notify/google_credentials.json"
-    token_file: "~/.config/streamdeck-notify/google_token.json"
+    # Auth via GNOME Online Accounts (automatic, no OAuth app needed)
+    # identity: "user@example.com"  # Optional: filter if multiple Google accounts
     lookahead_minutes: 60
 
   gmail:
-    credentials_file: "~/.config/streamdeck-notify/google_credentials.json"
-    token_file: "~/.config/streamdeck-notify/google_token.json"
-    labels: ["INBOX"]
+    # Auth via GNOME Online Accounts + IMAP (automatic)
+    # identity: "user@example.com"  # Optional: filter if multiple Google accounts
 
   gitlab:
     # Uses glab CLI token automatically

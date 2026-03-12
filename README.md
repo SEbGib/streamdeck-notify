@@ -17,7 +17,7 @@ Stream Deck notification center for Linux — turns your Stream Deck into a live
 └─────────────────────────┘                     └──────────────────────┘
 ```
 
-The **bridge** runs outside Flatpak with full system access (D-Bus, CLI tools, Google APIs).
+The **bridge** runs outside Flatpak with full system access (D-Bus, CLI tools, GNOME Online Accounts).
 The **StreamController plugin** fetches state via HTTP and updates button displays.
 
 ## Quick Start
@@ -62,11 +62,32 @@ plugins:
 
 ### Google Calendar & Gmail
 
+**No OAuth app needed.** Uses [GNOME Online Accounts](https://wiki.gnome.org/Projects/GnomeOnlineAccounts) — just add your Google account in GNOME Settings with Calendar and Mail enabled.
+
+The bridge extracts OAuth2 tokens via D-Bus (`org.gnome.OnlineAccounts.OAuth2Based`), so it works even on enterprise Google Workspace where creating custom OAuth apps is restricted.
+
+- **Calendar**: uses Google Calendar REST API with GOA token
+- **Gmail**: uses IMAP + XOAUTH2 with GOA token (Gmail REST API is not enabled in GNOME's OAuth project)
+
+To filter a specific account (if you have multiple Google accounts in GNOME):
+```yaml
+# config.yaml
+plugins:
+  google_calendar:
+    identity: "user@example.com"
+  gmail:
+    identity: "user@example.com"
+```
+
+<details>
+<summary>Manual OAuth setup (alternative, if GOA is not available)</summary>
+
 ```bash
-# Interactive setup — opens browser for OAuth
 source .venv/bin/activate
 python -m src.google_setup
 ```
+Requires creating an OAuth app in Google Cloud Console.
+</details>
 
 ### GitLab & GitHub
 
@@ -109,8 +130,9 @@ streamdeck-notify/
 │       ├── slack.py           # Slack (D-Bus + API)
 │       ├── gitlab.py          # GitLab (glab CLI)
 │       ├── github.py          # GitHub (gh CLI)
-│       ├── gmail.py           # Gmail API
-│       └── google_calendar.py # Google Calendar API
+│       ├── goa.py             # GNOME Online Accounts helper
+│       ├── gmail.py           # Gmail (IMAP + GOA)
+│       └── google_calendar.py # Google Calendar (REST + GOA)
 ├── streamcontroller-plugin/   # StreamController plugin
 │   ├── main.py
 │   ├── manifest.json
