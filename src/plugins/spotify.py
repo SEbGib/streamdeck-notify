@@ -28,10 +28,23 @@ _MAX_LABEL_LEN = 18
 class SpotifyPlugin(BasePlugin):
     """Show now playing track on Stream Deck via MPRIS2 D-Bus."""
 
+    POLL_INTERVAL = 5  # Media updates need faster polling than notifications
+
     def __init__(self, config: dict):
         super().__init__(config)
         self._player: str | None = config.get("player")
         self._active_player: str | None = None
+
+    async def run_loop(self, interval: int) -> None:
+        """Override: use faster poll interval for media tracking."""
+        self._running = True
+        await self.setup()
+        while self._running:
+            try:
+                self.state = await self.poll()
+            except Exception:
+                logger.exception("Poll error in SpotifyPlugin")
+            await asyncio.sleep(self.POLL_INTERVAL)
 
     async def setup(self) -> None:
         if self._player:
@@ -43,9 +56,8 @@ class SpotifyPlugin(BasePlugin):
                 logger.info("MPRIS: auto-detected %s", self._active_player)
 
     async def poll(self) -> NotificationState:
-        # Re-detect player if none active
-        if not self._active_player:
-            self._active_player = await self._detect_player()
+        # Always re-detect player (instance IDs change when tabs switch)
+        self._active_player = await self._detect_player()
 
         if not self._active_player:
             return NotificationState(

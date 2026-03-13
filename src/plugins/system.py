@@ -28,12 +28,24 @@ _DANGER_THRESHOLD = 95
 class SystemPlugin(BasePlugin):
     """Show CPU or RAM usage on Stream Deck."""
 
+    POLL_INTERVAL = 5
+
     def __init__(self, config: dict):
         super().__init__(config)
         self._metric: str = config.get("metric", "cpu")
         self._warn: int = config.get("warn", _WARN_THRESHOLD)
         self._prev_idle: float = 0
         self._prev_total: float = 0
+
+    async def run_loop(self, interval: int) -> None:
+        self._running = True
+        await self.setup()
+        while self._running:
+            try:
+                self.state = await self.poll()
+            except Exception:
+                logger.exception("Poll error in SystemPlugin")
+            await asyncio.sleep(self.POLL_INTERVAL)
 
     async def poll(self) -> NotificationState:
         try:
