@@ -124,7 +124,7 @@ class NotifyBridge:
     async def _broadcast_changes(self) -> None:
         """Check for state changes and push to SSE clients."""
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.25)
             if not self._sse_clients:
                 continue
 

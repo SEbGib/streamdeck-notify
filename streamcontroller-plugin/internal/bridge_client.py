@@ -54,22 +54,27 @@ class BridgeClient:
 
     @classmethod
     def _sse_loop(cls, base_url: str) -> None:
-        """Background thread: read SSE events from /events."""
+        """Background thread: read SSE events from /events line by line."""
         while cls._sse_running:
             try:
                 req = urllib.request.Request(f"{base_url}/events")
-                with urllib.request.urlopen(req, timeout=30) as resp:
+                with urllib.request.urlopen(req, timeout=60) as resp:
                     cls._sse_connected = True
                     cls._fail_count = 0
-                    buffer = ""
+                    data_line = ""
                     while cls._sse_running:
-                        chunk = resp.read(4096)
-                        if not chunk:
+                        raw = resp.readline()
+                        if not raw:
                             break
-                        buffer += chunk.decode("utf-8", errors="replace")
-                        while "\n\n" in buffer:
-                            event_str, buffer = buffer.split("\n\n", 1)
-                            cls._process_sse_event(event_str)
+                        line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+                        if line.startswith("data: "):
+                            data_line = line[6:]
+                        elif line.startswith(":"):
+                            continue  # keepalive
+                        elif line == "" and data_line:
+                            # Empty line = end of SSE event
+                            cls._process_sse_data(data_line)
+                            data_line = ""
             except Exception:
                 cls._sse_connected = False
                 cls._fail_count += 1
@@ -79,18 +84,10 @@ class BridgeClient:
                 time.sleep(min(cls._fail_count * 2, 10))
 
     @classmethod
-    def _process_sse_event(cls, raw: str) -> None:
-        """Parse SSE event and update cache."""
-        data_line = ""
-        for line in raw.split("\n"):
-            if line.startswith("data: "):
-                data_line = line[6:]
-            elif line.startswith(":"):
-                return  # Comment/keepalive
-        if not data_line:
-            return
+    def _process_sse_data(cls, data: str) -> None:
+        """Parse SSE data payload and update cache."""
         try:
-            plugin_states = json.loads(data_line)
+            plugin_states = json.loads(data)
             if not cls._cache:
                 cls._cache = {"plugins": {}, "timestamp": ""}
             cls._cache.setdefault("plugins", {}).update(plugin_states)

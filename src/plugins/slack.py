@@ -132,6 +132,8 @@ class SlackPlugin(BasePlugin):
                         "channel": channel,
                     })
                     logger.info("Slack notification [%s]: %s - %s", app_name, summary, body[:50])
+                    # Push state immediately — don't wait for next poll cycle
+                    self.notify_state_changed()
 
             bus.add_message_handler(on_message)
             await asyncio.get_event_loop().create_future()
@@ -209,6 +211,8 @@ class SlackPlugin(BasePlugin):
             # DND active — disable it
             self._dnd_active = False
             logger.info("Slack DND disabled")
+        # Reflect change immediately
+        self.notify_state_changed()
 
     # --- API method ---
 
