@@ -23,7 +23,7 @@ class Colors(StrEnum):
 
 # Source registry: id -> (display name, default URL, icon key)
 SOURCES = {
-    "slack": ("Slack", "https://app.slack.com", Icons.SLACK),
+    "slack": ("Slack", "https://app.slack.com/client/T07UGUMK1F1", Icons.SLACK),
     "google_calendar": ("Agenda", "https://calendar.google.com", Icons.CALENDAR),
     "gmail": ("Gmail", "https://mail.google.com", Icons.GMAIL),
     "gitlab": ("GitLab", "https://gitlab.com/dashboard/merge_requests", Icons.GITLAB),

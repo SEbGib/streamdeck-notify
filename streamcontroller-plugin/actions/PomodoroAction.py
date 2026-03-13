@@ -58,6 +58,8 @@ class PomodoroAction(ActionCore):
 
     def on_tick(self):
         """Called every second by StreamController."""
+        if self.page is not self.deck_controller.active_page:
+            return
         now = time.time()
 
         if self._running:

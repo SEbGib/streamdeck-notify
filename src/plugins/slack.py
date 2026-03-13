@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections import deque
 
@@ -112,9 +113,14 @@ class SlackPlugin(BasePlugin):
                         return
 
                     self._dbus_count += 1
+                    # Strip HTML tags from browser notifications
+                    summary = _strip_html(summary)
+                    body = _strip_html(body)
+                    # Extract actual message from Chrome body (format: "url\n\nmessage")
+                    body = _extract_chrome_body(body)
                     self._dbus_last_summary = summary
-                    # Use body as channel identifier; fall back to summary
-                    channel = body[:30].strip() if body else summary[:30].strip()
+                    # Channel: use summary (e.g. "Nouveau message de X")
+                    channel = summary[:30].strip() if summary else "Slack"
                     self._dbus_last_channel = channel
                     if channel:
                         self._channels[channel] = self._channels.get(channel, 0) + 1
@@ -252,3 +258,29 @@ class SlackPlugin(BasePlugin):
             urgent=has_mention,
             color="#4A154B",
         )
+
+
+def _strip_html(text: str) -> str:
+    """Remove HTML tags and decode entities from browser notification text."""
+    if not text:
+        return text
+    text = re.sub(r"<[^>]+>", "", text)
+    text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    text = text.replace("&nbsp;", " ").replace("&#39;", "'").replace("&quot;", '"')
+    return text.strip()
+
+
+def _extract_chrome_body(body: str) -> str:
+    """Extract actual message from Chrome notification body.
+
+    Chrome sends: 'app.slack.com\\n\\nActual message here'
+    """
+    if not body:
+        return body
+    # Split on double newline, take the last non-empty part
+    parts = body.split("\n\n")
+    for part in reversed(parts):
+        cleaned = part.strip()
+        if cleaned and not cleaned.startswith(("http", "app.slack")):
+            return cleaned
+    return body.strip()

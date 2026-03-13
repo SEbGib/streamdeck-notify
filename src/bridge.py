@@ -80,12 +80,16 @@ class NotifyBridge:
         return web.json_response(data)
 
     async def handle_action(self, request: web.Request) -> web.Response:
-        """POST /action/{name} — trigger on_press for a plugin."""
+        """POST /action/{name}?action=xxx — trigger on_press for a plugin."""
         name = request.match_info["name"]
         plugin = self.plugins.get(name)
         if not plugin:
             return web.json_response({"error": f"Unknown plugin: {name}"}, status=404)
-        await plugin.on_press()
+        action = request.query.get("action", "")
+        if action:
+            await plugin.on_press(action=action)
+        else:
+            await plugin.on_press()
         return web.json_response({"ok": True})
 
     async def handle_events(self, request: web.Request) -> web.StreamResponse:

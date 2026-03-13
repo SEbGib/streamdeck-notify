@@ -33,8 +33,15 @@ BADGE_RED = "#FF3B30"
 BADGE_BG_URGENT = (80, 0, 0, 200)
 TEXT_WHITE = "#FFFFFF"
 
+# Page auto-switch: calendar "MAINTENANT" → Meeting page, then back to Home
+_MEETING_PAGE = "Meeting"
+_HOME_PAGE = "Home"
+
 
 class NotifyAction(ActionCore):
+    _page_switch_active: bool = False  # Class-level flag to prevent duplicate switches
+    _meeting_dismissed: bool = False   # User manually dismissed meeting page
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.has_configuration = True
@@ -45,6 +52,8 @@ class NotifyAction(ActionCore):
         self._last_state: dict = {}
         self._bridge_down: bool = False
         self._icon_path: Path | None = None
+        self._meeting_active: bool = False
+        self._ready_ts: float = 0
 
         self.create_event_assigners()
 
@@ -100,6 +109,8 @@ class NotifyAction(ActionCore):
         self._action_url = settings.get("action_url", "")
         if not self._action_url and self._source:
             self._action_url = SOURCE_URLS.get(self._source, "")
+        import time as _time
+        self._ready_ts = _time.time()
         log.info(f"NotifyAction ready: source={self._source!r}, url={self._action_url!r}")
         self._resolve_icon()
         self._update_display()
@@ -107,6 +118,9 @@ class NotifyAction(ActionCore):
     def on_tick(self):
         """Called every second by StreamController."""
         if not self._source:
+            return
+        # Skip if this action's page is not the active page
+        if self.page is not self.deck_controller.active_page:
             return
 
         try:
@@ -119,8 +133,13 @@ class NotifyAction(ActionCore):
 
             self._bridge_down = False
             if state != self._last_state:
+                log.debug(f"NotifyAction state change: source={self._source}, count={state.get('count', '?')}")
                 self._last_state = state
                 self._update_display()
+            elif self._source == "google_calendar" and not NotifyAction._page_switch_active:
+                # Re-check meeting switch even if state hasn't changed
+                subtitle = state.get("subtitle", "")
+                self._handle_meeting_page_switch(subtitle)
 
         except Exception as e:
             if not self._bridge_down:
@@ -137,24 +156,23 @@ class NotifyAction(ActionCore):
         # Next tick will clear/update the label automatically
 
     def _on_press(self, data=None):
-        """Button pressed — reset count and open URL."""
+        """Button pressed — reset count, open URL, and optionally switch page."""
         log.info(f"NotifyAction press: source={self._source!r}")
         if self._source:
             BridgeClient.post_action(self._source, self._bridge_url)
+
+        # Page switch if configured (manual return to Home)
+        settings = self.get_settings()
+        page_target = settings.get("_page_switch", "")
+        if page_target:
+            NotifyAction._meeting_dismissed = True
+            self._switch_page(page_target)
 
         url = self._action_url
         if not url and self._source:
             url = SOURCE_URLS.get(self._source, "")
         if url:
-            log.info(f"NotifyAction opening: {url}")
-            try:
-                subprocess.Popen(
-                    ["xdg-open", url],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except Exception as e:
-                log.error(f"Failed to open URL: {e}")
+            _open_url(url, source=self._source)
 
     def _update_display(self):
         """Update button image with icon, labels, and badge."""
@@ -179,13 +197,75 @@ class NotifyAction(ActionCore):
         else:
             self.set_bottom_label("")
 
-        # Dynamic icon for media sources
+        # Auto-switch page for calendar meetings
+        if self._source == "google_calendar":
+            log.debug(f"Calendar display: subtitle={subtitle!r}, meeting_active={self._meeting_active}, "
+                      f"page_switch_active={NotifyAction._page_switch_active}, dismissed={NotifyAction._meeting_dismissed}")
+            self._handle_meeting_page_switch(subtitle)
+
+        # Dynamic icon for media sources and weather
         extra = self._last_state.get("extra", {})
         media_source = extra.get("media_source")
         if media_source and self._source == "spotify":
             self._resolve_dynamic_icon(media_source)
+        weather_icon = extra.get("weather_icon")
+        if weather_icon and self._source == "weather":
+            self._resolve_dynamic_icon(weather_icon)
 
         self._set_source_icon(badge_count=count, urgent=urgent)
+
+    def _handle_meeting_page_switch(self, subtitle: str):
+        """Switch to Meeting page when event is NOW, back to Home when over."""
+        is_now = subtitle == "MAINTENANT"
+        import time as _time
+        # Skip during SC init (first 10s) to avoid race with page loading
+        if _time.time() - self._ready_ts < 10:
+            return
+        if is_now and not NotifyAction._page_switch_active and not NotifyAction._meeting_dismissed:
+            self._meeting_active = True
+            NotifyAction._page_switch_active = True
+            self._switch_page(_MEETING_PAGE)
+        elif not is_now:
+            # Event ended — reset all flags, return to Home if we switched
+            if self._meeting_active:
+                self._switch_page(_HOME_PAGE)
+            self._meeting_active = False
+            NotifyAction._page_switch_active = False
+            NotifyAction._meeting_dismissed = False
+
+    def _switch_page(self, page_name: str):
+        """Switch the deck to a named page."""
+        import threading
+        threading.Timer(0.05, self._do_switch_page, args=[page_name]).start()
+
+    def _do_switch_page(self, page_name: str):
+        try:
+            import globals as gl
+            import time
+
+            page_path = gl.page_manager.get_best_page_path_match_from_name(page_name)
+            if page_path is None:
+                log.warning(f"Page '{page_name}' not found")
+                return
+            page = gl.page_manager.get_page(page_path, self.deck_controller)
+
+            dc = self.deck_controller
+            mp = dc.media_player
+
+            dc.active_page = page
+            mp.tasks.clear()
+            mp.image_tasks.clear()
+
+            dc.load_background(page, update=False)
+            dc.load_brightness(page)
+            dc.load_all_inputs(page, update=True)
+            page.call_actions_ready_and_set_flag()
+            dc.update_all_inputs()
+            time.sleep(0.5)
+            dc.update_all_inputs()
+            log.info(f"Switched to page: {page_name}")
+        except Exception as e:
+            log.error(f"Page switch error: {e}")
 
     def _resolve_icon(self):
         """Find the icon file for the current source."""
@@ -291,6 +371,46 @@ class NotifyAction(ActionCore):
         self.set_settings(settings)
 
 
+# PWA app IDs: source → (profile_dir, app_id)
+_PWA_APPS: dict[str, tuple[str, str]] = {}
+
+
+def register_pwa(source: str, profile_dir: str, app_id: str) -> None:
+    """Register a Chrome PWA for a source."""
+    _PWA_APPS[source] = (profile_dir, app_id)
+
+
+def _open_url(url: str, source: str = "") -> None:
+    """Open URL or focus PWA if registered for this source."""
+    log.info(f"Opening: source={source}, url={url}")
+
+    # Try PWA first — focuses existing window instead of new tab
+    if source in _PWA_APPS:
+        profile_dir, app_id = _PWA_APPS[source]
+        try:
+            subprocess.Popen(
+                ["flatpak-spawn", "--host",
+                 "google-chrome", f"--profile-directory={profile_dir}",
+                 f"--app-id={app_id}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return
+        except Exception as e:
+            log.debug(f"PWA launch failed: {e}")
+
+    # Fallback: xdg-open
+    if url:
+        try:
+            subprocess.Popen(
+                ["xdg-open", url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as e:
+            log.error(f"Failed to open URL: {e}")
+
+
 def _get_font(size: int):
     """Get a font, falling back to default."""
     font_paths = [
@@ -302,3 +422,52 @@ def _get_font(size: int):
         if Path(fp).exists():
             return ImageFont.truetype(fp, size)
     return ImageFont.load_default()
+
+
+# Auto-detect PWAs from Chrome desktop entries
+def _detect_pwas() -> None:
+    """Scan Chrome PWA desktop entries and register known sources."""
+    import os
+    apps_dir = os.path.expanduser("~/.local/share/applications")
+    # source keyword → source id
+    pwa_keywords = {
+        "slack": "slack",
+        "gmail": "gmail",
+        "calendar": "google_calendar",
+        "github": "github",
+        "gitlab": "gitlab",
+    }
+    try:
+        for fname in os.listdir(apps_dir):
+            if not fname.startswith("chrome-") or not fname.endswith(".desktop"):
+                continue
+            fpath = os.path.join(apps_dir, fname)
+            name = ""
+            profile_dir = ""
+            app_id = ""
+            with open(fpath) as f:
+                for line in f:
+                    if line.startswith("Name="):
+                        name = line.strip().split("=", 1)[1].lower()
+                    if "--app-id=" in line:
+                        import shlex
+                        try:
+                            parts = shlex.split(line.strip())
+                        except ValueError:
+                            parts = line.strip().split()
+                        for part in parts:
+                            if part.startswith("--app-id="):
+                                app_id = part.split("=", 1)[1]
+                            elif part.startswith("--profile-directory="):
+                                profile_dir = part.split("=", 1)[1]
+            if not app_id:
+                continue
+            for keyword, source_id in pwa_keywords.items():
+                if keyword in name:
+                    register_pwa(source_id, profile_dir, app_id)
+                    log.info(f"PWA detected: {source_id} → {app_id} (profile={profile_dir})")
+    except Exception as e:
+        log.debug(f"PWA detection failed: {e}")
+
+
+_detect_pwas()

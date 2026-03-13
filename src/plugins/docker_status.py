@@ -26,28 +26,22 @@ class DockerStatusPlugin(BasePlugin):
             return NotificationState(label="Docker", subtitle="Error", color="#FF3B30")
 
         total_up = len(running)
-        total_down = len(stopped)
         has_unhealthy = len(unhealthy) > 0
 
-        subtitle = f"{total_up} up"
-        if total_down:
-            subtitle += f" / {total_down} down"
-
-        if total_down or has_unhealthy:
+        if has_unhealthy:
             color = "#FF3B30"
             urgent = True
         elif total_up == 0:
             color = "#8E8E93"
             urgent = False
-            subtitle = "No containers"
         else:
             color = "#2DA160"
             urgent = False
 
         return NotificationState(
-            count=total_down,
+            count=total_up,
             label="Docker",
-            subtitle=subtitle,
+            subtitle=f"{total_up} up",
             urgent=urgent,
             color=color,
         )

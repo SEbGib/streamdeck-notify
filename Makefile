@@ -1,4 +1,4 @@
-.PHONY: install install-plugin bridge enable disable status logs sync
+.PHONY: install install-plugin bridge enable disable status logs sync restore-pages backup-pages
 
 PROJECT_DIR := $(shell pwd)
 PLUGIN_DEST := $(HOME)/.var/app/com.core447.StreamController/data/plugins/com_sgiband_NotifyCenter
@@ -38,3 +38,13 @@ sync:
 	flatpak kill com.core447.StreamController 2>/dev/null || true
 	flatpak run com.core447.StreamController &
 	@echo "StreamController restarted."
+
+PAGES_DIR := $(HOME)/.var/app/com.core447.StreamController/data/pages
+
+restore-pages:
+	cp streamcontroller-pages/*.json $(PAGES_DIR)/
+	@echo "Pages restored to $(PAGES_DIR)"
+
+backup-pages:
+	cp $(PAGES_DIR)/Home.json $(PAGES_DIR)/Meeting.json streamcontroller-pages/
+	@echo "Pages backed up to streamcontroller-pages/"

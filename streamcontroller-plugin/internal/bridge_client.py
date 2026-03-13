@@ -135,9 +135,12 @@ class BridgeClient:
             return cls._cache
 
     @classmethod
-    def post_action(cls, source: str, base_url: str = DEFAULT_URL) -> None:
-        """POST /action/{source} to trigger on_press."""
-        req = urllib.request.Request(f"{base_url}/action/{source}", method="POST")
+    def post_action(cls, source: str, base_url: str = DEFAULT_URL, action: str = "") -> None:
+        """POST /action/{source}?action=xxx to trigger on_press."""
+        url = f"{base_url}/action/{source}"
+        if action:
+            url += f"?action={action}"
+        req = urllib.request.Request(url, method="POST")
         try:
             urllib.request.urlopen(req, timeout=3)
         except Exception:

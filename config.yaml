@@ -105,11 +105,10 @@ plugins:
     # containers: ["web", "db"]  # Optional: filter specific containers
 
   weather:
-    # OpenWeatherMap API
-    # api_key: "${OPENWEATHER_API_KEY}"
-    # city: "Paris"
-    # units: "metric"
-    # lang: "fr"
+    # Open-Meteo (gratuit, sans clé)
+    latitude: 44.0553
+    longitude: 5.1325
+    location: "Mazan"
 
   system_cpu:
     metric: "cpu"

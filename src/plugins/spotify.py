@@ -159,14 +159,20 @@ class SpotifyPlugin(BasePlugin):
         # YouTube heuristic: no album, browser-based
         return "youtube"
 
-    async def on_press(self) -> None:
+    async def on_press(self, action: str = "play_pause") -> None:
         if not self._active_player:
             return
+        methods = {
+            "play_pause": "PlayPause",
+            "previous": "Previous",
+            "next": "Next",
+        }
+        method = methods.get(action, "PlayPause")
         loop = asyncio.get_event_loop()
         try:
-            await loop.run_in_executor(None, self._dbus_play_pause)
+            await loop.run_in_executor(None, self._dbus_method, method)
         except Exception:
-            logger.exception("MPRIS PlayPause failed")
+            logger.exception("MPRIS %s failed", method)
 
     async def _detect_player(self) -> str | None:
         loop = asyncio.get_event_loop()
@@ -247,13 +253,13 @@ class SpotifyPlugin(BasePlugin):
 
         return self._parse_metadata(result.stdout)
 
-    def _dbus_play_pause(self) -> None:
+    def _dbus_method(self, method: str) -> None:
         subprocess.run(
             [
                 "gdbus", "call", "--session",
                 "--dest", self._active_player,
                 "--object-path", "/org/mpris/MediaPlayer2",
-                "--method", "org.mpris.MediaPlayer2.Player.PlayPause",
+                "--method", f"org.mpris.MediaPlayer2.Player.{method}",
             ],
             capture_output=True, text=True, timeout=5,
         )

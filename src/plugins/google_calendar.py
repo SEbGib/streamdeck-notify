@@ -46,38 +46,34 @@ class GoogleCalendarPlugin(BasePlugin):
             logger.exception("Calendar fetch failed")
             return NotificationState(label="Agenda", subtitle="Erreur", color="#4285F4")
 
-        if not events:
+        # Filter out all-day events (Domicile, Travail, etc.)
+        timed = [e for e in events if "dateTime" in e.get("start", {})]
+
+        if not timed:
             return NotificationState(
                 count=0, label="Agenda", subtitle="Rien", color="#4285F4",
             )
 
-        # Skip all-day events for "next event" display — prefer timed events
-        timed = [e for e in events if "dateTime" in e.get("start", {})]
-        next_event = timed[0] if timed else events[0]
-        is_all_day = "dateTime" not in next_event.get("start", {})
-        start = next_event["start"].get("dateTime", next_event["start"].get("date", ""))
+        next_event = timed[0]
+        start = next_event["start"]["dateTime"]
         summary = next_event.get("summary", "Sans titre")[:18]
 
-        if is_all_day:
-            subtitle = summary
+        minutes_until = _minutes_until(start)
+        if minutes_until is not None and minutes_until <= 5:
+            subtitle = "MAINTENANT"
+            urgent = True
+        elif minutes_until is not None and minutes_until <= 15:
+            subtitle = f"Dans {minutes_until}min"
+            urgent = True
+        elif minutes_until is not None:
+            subtitle = f"Dans {minutes_until}min"
             urgent = False
         else:
-            minutes_until = _minutes_until(start)
-            if minutes_until is not None and minutes_until <= 5:
-                subtitle = "MAINTENANT"
-                urgent = True
-            elif minutes_until is not None and minutes_until <= 15:
-                subtitle = f"Dans {minutes_until}min"
-                urgent = True
-            elif minutes_until is not None:
-                subtitle = f"Dans {minutes_until}min"
-                urgent = False
-            else:
-                subtitle = summary
-                urgent = False
+            subtitle = summary
+            urgent = False
 
         return NotificationState(
-            count=len(events),
+            count=len(timed),
             label=summary,
             subtitle=subtitle,
             urgent=urgent,
