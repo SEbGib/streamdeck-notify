@@ -179,6 +179,12 @@ class NotifyAction(ActionCore):
         else:
             self.set_bottom_label("")
 
+        # Dynamic icon for media sources
+        extra = self._last_state.get("extra", {})
+        media_source = extra.get("media_source")
+        if media_source and self._source == "spotify":
+            self._resolve_dynamic_icon(media_source)
+
         self._set_source_icon(badge_count=count, urgent=urgent)
 
     def _resolve_icon(self):
@@ -187,12 +193,27 @@ class NotifyAction(ActionCore):
             return
         icon_key = SOURCE_ICONS.get(self._source, "")
         if icon_key:
-            plugin_dir = Path(__file__).parent.parent
-            for ext in (".png", ".svg"):
-                path = plugin_dir / "assets" / f"{icon_key}{ext}"
-                if path.exists():
-                    self._icon_path = path
-                    return
+            self._icon_path = self._find_icon(icon_key)
+
+    def _resolve_dynamic_icon(self, media_source: str):
+        """Switch icon based on detected media source."""
+        # Try media-specific icon first, fall back to default spotify icon
+        path = self._find_icon(media_source)
+        if path:
+            self._icon_path = path
+        else:
+            icon_key = SOURCE_ICONS.get(self._source, "")
+            if icon_key:
+                self._icon_path = self._find_icon(icon_key)
+
+    def _find_icon(self, name: str) -> Path | None:
+        """Find an icon file by name in assets."""
+        plugin_dir = Path(__file__).parent.parent
+        for ext in (".png", ".svg"):
+            path = plugin_dir / "assets" / f"{name}{ext}"
+            if path.exists():
+                return path
+        return None
 
     def _set_source_icon(self, badge_count: int = 0, urgent: bool = False):
         """Set button icon, optionally with a notification badge overlay."""
