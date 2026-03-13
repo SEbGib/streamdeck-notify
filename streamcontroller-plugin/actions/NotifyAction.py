@@ -197,7 +197,6 @@ class NotifyAction(ActionCore):
 
     def _resolve_dynamic_icon(self, media_source: str):
         """Switch icon based on detected media source."""
-        # Try media-specific icon first, fall back to default spotify icon
         path = self._find_icon(media_source)
         if path:
             self._icon_path = path
