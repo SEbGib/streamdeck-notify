@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
-
 from loguru import logger as log
 from PIL import Image
-from StreamDeck.ImageHelpers import PILHelper
 
 from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.ActionCore import ActionCore
@@ -50,36 +47,58 @@ class PageSwitchAction(ActionCore):
         try:
             import globals as gl
             import time
+            import threading
 
             page_path = gl.page_manager.get_best_page_path_match_from_name(self._target_page)
             if page_path is None:
                 log.warning(f"Page '{self._target_page}' not found")
                 return
             page = gl.page_manager.get_page(page_path, self.deck_controller)
-
             dc = self.deck_controller
-            mp = dc.media_player
 
-            # Set new page and clear stale tasks/images
+            # Synchronized clear — waits for current media player tick to finish
             dc.active_page = page
-            mp.tasks.clear()
-            mp.image_tasks.clear()
+            dc.clear_media_player_tasks()
 
+            # Load page content directly
             dc.load_background(page, update=False)
             dc.load_brightness(page)
-            dc.load_all_inputs(page, update=True)
-            page.call_actions_ready_and_set_flag()
+            dc.load_all_inputs(page, update=False)
 
-            # update adds image_tasks to media player, processed on next tick
+            # Only call on_ready for NEW actions (first load)
+            # Returning pages already have state — just re-render
+            threads = []
+            for action in page.get_all_actions():
+                if hasattr(action, "on_ready") and not action.on_ready_called:
+                    action.load_event_overrides()
+                    action.on_ready_called = True
+                    t = threading.Thread(
+                        target=self._safe_on_ready,
+                        args=(action,),
+                        daemon=True,
+                    )
+                    t.start()
+                    threads.append(t)
+
+            for t in threads:
+                t.join(timeout=3.0)
+
+            # Re-render all keys — uses stored action state
             dc.update_all_inputs()
-
-            # Wait for on_ready set_media calls, then re-render
-            time.sleep(0.5)
+            time.sleep(0.3)
             dc.update_all_inputs()
 
             log.info(f"PageSwitch: done switching to {self._target_page}")
         except Exception as e:
             log.error(f"PageSwitch error: {e}")
+
+    @staticmethod
+    def _safe_on_ready(action):
+        """Call on_ready in a thread, catching all errors."""
+        try:
+            action.on_ready()
+        except Exception as e:
+            log.warning(f"on_ready failed for {action.__class__.__name__}: {e}")
 
     def _resolve_icon(self):
         icon_name = self.get_settings().get("icon", "page_next")
@@ -100,17 +119,3 @@ class PageSwitchAction(ActionCore):
 
         label = self.get_settings().get("label", self._target_page or "Page")
         self.set_bottom_label(label)
-
-
-def _flush_keys_to_deck(dc) -> None:
-    """Render all keys and write directly to deck hardware, bypassing media player."""
-    rotation = dc.deck.get_rotation()
-    for key in dc.inputs[Input.Key]:
-        try:
-            image = key.get_current_image()
-            rgb = image.convert("RGB").rotate(rotation)
-            native = PILHelper.to_native_key_format(dc.deck, rgb)
-            dc.deck.set_key_image(key.index, native)
-            rgb.close()
-        except Exception as e:
-            log.debug(f"Flush key {key.index} error: {e}")

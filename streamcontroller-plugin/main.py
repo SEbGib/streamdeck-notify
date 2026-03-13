@@ -11,6 +11,8 @@ from .actions.NotifyAction import NotifyAction
 from .actions.PomodoroAction import PomodoroAction
 from .actions.ResetAllAction import ResetAllAction
 from .actions.MediaControlAction import MediaControlAction
+from .actions.MicMuteAction import MicMuteAction
+from .actions.VolumeAction import VolumeAction
 from .actions.PageSwitchAction import PageSwitchAction
 from .globals import Icons
 
@@ -92,6 +94,40 @@ class NotifyCenter(PluginBase):
             log.info("NotifyCenter: media-control action holder added")
         except Exception as e:
             log.error(f"NotifyCenter: media-control action holder failed: {e}")
+
+        try:
+            mic_mute_action = ActionHolder(
+                plugin_base=self,
+                action_core=MicMuteAction,
+                action_id_suffix="MicMuteAction",
+                action_name="Mic Mute",
+                action_support={
+                    Input.Key: ActionInputSupport.SUPPORTED,
+                    Input.Dial: ActionInputSupport.UNSUPPORTED,
+                    Input.Touchscreen: ActionInputSupport.UNTESTED,
+                },
+            )
+            self.add_action_holder(mic_mute_action)
+            log.info("NotifyCenter: mic-mute action holder added")
+        except Exception as e:
+            log.error(f"NotifyCenter: mic-mute action holder failed: {e}")
+
+        try:
+            volume_action = ActionHolder(
+                plugin_base=self,
+                action_core=VolumeAction,
+                action_id_suffix="VolumeAction",
+                action_name="Volume Control",
+                action_support={
+                    Input.Key: ActionInputSupport.SUPPORTED,
+                    Input.Dial: ActionInputSupport.UNSUPPORTED,
+                    Input.Touchscreen: ActionInputSupport.UNTESTED,
+                },
+            )
+            self.add_action_holder(volume_action)
+            log.info("NotifyCenter: volume action holder added")
+        except Exception as e:
+            log.error(f"NotifyCenter: volume action holder failed: {e}")
 
         try:
             page_switch_action = ActionHolder(

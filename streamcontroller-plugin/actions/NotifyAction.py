@@ -54,6 +54,7 @@ class NotifyAction(ActionCore):
         self._icon_path: Path | None = None
         self._meeting_active: bool = False
         self._ready_ts: float = 0
+        self._force_next_render: bool = False
 
         self.create_event_assigners()
 
@@ -132,8 +133,10 @@ class NotifyAction(ActionCore):
                 return
 
             self._bridge_down = False
-            if state != self._last_state:
-                log.debug(f"NotifyAction state change: source={self._source}, count={state.get('count', '?')}")
+            force = self._force_next_render
+            if state != self._last_state or force:
+                self._force_next_render = False
+                log.debug(f"NotifyAction state change: source={self._source}, count={state.get('count', '?')}, force={force}")
                 self._last_state = state
                 self._update_display()
             elif self._source == "google_calendar" and not NotifyAction._page_switch_active:
@@ -148,12 +151,17 @@ class NotifyAction(ActionCore):
                 log.error(f"NotifyAction tick error: {e}")
 
     def _on_reset(self, data=None):
-        """Long press — reset count without opening URL."""
+        """Long press — switch page if configured, otherwise reset count."""
+        settings = self.get_settings()
+        page_target = settings.get("_page_switch_hold", "")
+        if page_target:
+            log.info(f"NotifyAction hold → page: {page_target!r}")
+            self._switch_page(page_target)
+            return
         log.info(f"NotifyAction reset: source={self._source!r}")
         if self._source:
             BridgeClient.post_action(self._source, self._bridge_url)
         self.set_bottom_label("Reset!")
-        # Next tick will clear/update the label automatically
 
     def _on_press(self, data=None):
         """Button pressed — reset count, open URL, and optionally switch page."""
@@ -233,6 +241,21 @@ class NotifyAction(ActionCore):
             NotifyAction._page_switch_active = False
             NotifyAction._meeting_dismissed = False
 
+    @staticmethod
+    def _safe_on_ready(action):
+        """Call on_ready in a thread, catching all errors."""
+        name = action.__class__.__name__
+        source = getattr(action, '_source', '?')
+        try:
+            action.on_ready()
+            log.info(f"on_ready OK: {name}({source})")
+        except Warning as w:
+            log.warning(f"on_ready WARNING: {name}({source}): {w}")
+        except Exception as e:
+            log.warning(f"on_ready FAIL: {name}({source}): {e}")
+        except BaseException as e:
+            log.error(f"on_ready CRASH: {name}({source}): {type(e).__name__}: {e}")
+
     def _switch_page(self, page_name: str):
         """Switch the deck to a named page."""
         import threading
@@ -242,27 +265,47 @@ class NotifyAction(ActionCore):
         try:
             import globals as gl
             import time
+            import threading
 
             page_path = gl.page_manager.get_best_page_path_match_from_name(page_name)
             if page_path is None:
                 log.warning(f"Page '{page_name}' not found")
                 return
             page = gl.page_manager.get_page(page_path, self.deck_controller)
-
             dc = self.deck_controller
-            mp = dc.media_player
 
+            # Synchronized clear — waits for current media player tick to finish
             dc.active_page = page
-            mp.tasks.clear()
-            mp.image_tasks.clear()
+            dc.clear_media_player_tasks()
 
+            # Load page content directly (not via media player tasks)
             dc.load_background(page, update=False)
             dc.load_brightness(page)
-            dc.load_all_inputs(page, update=True)
-            page.call_actions_ready_and_set_flag()
+            dc.load_all_inputs(page, update=False)
+
+            # Only call on_ready for NEW actions (first load)
+            # Returning pages already have state — just re-render
+            threads = []
+            for action in page.get_all_actions():
+                if hasattr(action, "on_ready") and not action.on_ready_called:
+                    action.load_event_overrides()
+                    action.on_ready_called = True
+                    t = threading.Thread(
+                        target=self._safe_on_ready,
+                        args=(action,),
+                        daemon=True,
+                    )
+                    t.start()
+                    threads.append(t)
+
+            for t in threads:
+                t.join(timeout=3.0)
+
+            # Re-render all keys — uses stored action state
             dc.update_all_inputs()
-            time.sleep(0.5)
+            time.sleep(0.3)
             dc.update_all_inputs()
+
             log.info(f"Switched to page: {page_name}")
         except Exception as e:
             log.error(f"Page switch error: {e}")
