@@ -432,7 +432,7 @@ def _open_url(url: str, source: str = "") -> None:
         profile_dir, app_id = _PWA_APPS[source]
         try:
             subprocess.Popen(
-                ["flatpak-spawn", "--host",
+                ["flatpak-spawn", "--host", "--directory=/",
                  "google-chrome", f"--profile-directory={profile_dir}",
                  f"--app-id={app_id}"],
                 stdout=subprocess.DEVNULL,

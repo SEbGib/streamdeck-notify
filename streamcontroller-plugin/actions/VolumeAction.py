@@ -17,12 +17,20 @@ from src.backend.PluginManager.EventAssigner import EventAssigner
 STEP = "5%"
 
 
+def _host_run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """Run a command on the host via flatpak-spawn."""
+    return subprocess.run(
+        ["flatpak-spawn", "--host", "--directory=/"] + cmd,
+        capture_output=True, text=True, timeout=3, **kwargs,
+    )
+
+
 class VolumeAction(ActionCore):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.has_configuration = True
-        self._direction: str = "up"  # "up" or "down"
+        self._direction: str = "up"
         self._volume_pct: int | None = None
 
         self.add_event_assigner(EventAssigner(
@@ -44,18 +52,16 @@ class VolumeAction(ActionCore):
             self._poll_volume()
             self._update_display()
         except Warning:
-            pass  # Action not yet ready
+            pass
 
     def _on_press(self, data=None):
         op = f"{STEP}+" if self._direction == "up" else f"{STEP}-"
         log.info(f"Volume: {op}")
         try:
-            subprocess.run(
-                ["flatpak-spawn", "--host",
-                 "wpctl", "set-volume", "-l", "1.0",
-                 "@DEFAULT_AUDIO_SINK@", op],
-                capture_output=True, timeout=3,
-            )
+            result = _host_run(["wpctl", "set-volume", "-l", "1.0",
+                                "@DEFAULT_AUDIO_SINK@", op])
+            if result.returncode != 0:
+                log.error(f"Volume set-volume failed: rc={result.returncode} stderr={result.stderr.strip()}")
         except Exception as e:
             log.error(f"Volume error: {e}")
         self._poll_volume()
@@ -66,11 +72,7 @@ class VolumeAction(ActionCore):
 
     def _poll_volume(self):
         try:
-            result = subprocess.run(
-                ["flatpak-spawn", "--host",
-                 "wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
-                capture_output=True, text=True, timeout=3,
-            )
+            result = _host_run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
             if result.returncode == 0:
                 # Output: "Volume: 0.75" or "Volume: 0.75 [MUTED]"
                 parts = result.stdout.strip().split()

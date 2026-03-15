@@ -19,6 +19,14 @@ COLOR_LIVE = (50, 180, 80)
 COLOR_UNKNOWN = (120, 120, 120)
 
 
+def _host_run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """Run a command on the host via flatpak-spawn."""
+    return subprocess.run(
+        ["flatpak-spawn", "--host", "--directory=/"] + cmd,
+        capture_output=True, text=True, timeout=3, **kwargs,
+    )
+
+
 class MicMuteAction(ActionCore):
 
     def __init__(self, *args, **kwargs):
@@ -42,16 +50,14 @@ class MicMuteAction(ActionCore):
             self._poll_state()
             self._update_display()
         except Warning:
-            pass  # Action not yet ready
+            pass
 
     def _on_press(self, data=None):
         log.info("MicMute: toggling")
         try:
-            subprocess.run(
-                ["flatpak-spawn", "--host",
-                 "wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"],
-                capture_output=True, timeout=3,
-            )
+            result = _host_run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"])
+            if result.returncode != 0:
+                log.error(f"MicMute set-mute failed: rc={result.returncode} stderr={result.stderr.strip()}")
         except Exception as e:
             log.error(f"MicMute toggle error: {e}")
         self._poll_state()
@@ -62,11 +68,7 @@ class MicMuteAction(ActionCore):
 
     def _poll_state(self):
         try:
-            result = subprocess.run(
-                ["flatpak-spawn", "--host",
-                 "wpctl", "get-volume", "@DEFAULT_AUDIO_SOURCE@"],
-                capture_output=True, text=True, timeout=3,
-            )
+            result = _host_run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SOURCE@"])
             if result.returncode == 0:
                 self._muted = "[MUTED]" in result.stdout
         except Exception:

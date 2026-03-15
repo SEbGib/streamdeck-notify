@@ -5,8 +5,8 @@ Wants=graphical-session.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projects/streamdeck-notify
-ExecStart=%h/projects/streamdeck-notify/.venv/bin/python -m src.bridge
+WorkingDirectory=%h/projects/streamdeck-notify/main
+ExecStart=%h/projects/streamdeck-notify/main/.venv/bin/python -m src.bridge
 Restart=on-failure
 RestartSec=5
 Environment=DISPLAY=:0
