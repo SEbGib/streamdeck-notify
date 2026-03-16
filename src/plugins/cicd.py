@@ -61,7 +61,7 @@ class CICDPlugin(BasePlugin):
             color=color,
         )
 
-    async def on_press(self) -> None:
+    async def on_press(self, action: str = "") -> None:
         self.state = NotificationState(label="CI/CD", subtitle="...", color="#FFFFFF")
 
     async def _fetch_pipelines(self) -> list[dict]:

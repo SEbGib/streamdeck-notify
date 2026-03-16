@@ -383,16 +383,14 @@ def _open_url(url: str, source: str = "") -> None:
     if source in _PWA_APPS:
         profile_dir, app_id = _PWA_APPS[source]
         try:
-            subprocess.Popen(
-                ["flatpak-spawn", "--host", "--directory=/",
-                 "google-chrome", f"--profile-directory={profile_dir}",
-                 f"--app-id={app_id}"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            cmd = ["flatpak-spawn", "--host", "--directory=/",
+                   "google-chrome", f"--profile-directory={profile_dir}",
+                   f"--app-id={app_id}"]
+            log.info(f"PWA launch: {' '.join(cmd)}")
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return
         except Exception as e:
-            log.debug(f"PWA launch failed: {e}")
+            log.warning(f"PWA launch failed: {e}")
 
     # Fallback: xdg-open
     if url:

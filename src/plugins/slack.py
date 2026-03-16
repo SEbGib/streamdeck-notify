@@ -62,86 +62,91 @@ class SlackPlugin(BasePlugin):
     # --- D-Bus method (no token needed) ---
 
     async def _monitor_dbus(self) -> None:
-        """Listen for Slack desktop notifications via D-Bus."""
+        """Listen for Slack desktop notifications via D-Bus, with auto-reconnect."""
         try:
             from dbus_next.aio import MessageBus
             from dbus_next import MessageType, Message
-
-            bus = await MessageBus().connect()
-
-            await bus.call(
-                Message(
-                    destination="org.freedesktop.DBus",
-                    path="/org/freedesktop/DBus",
-                    interface="org.freedesktop.DBus",
-                    member="AddMatch",
-                    signature="s",
-                    body=[
-                        "type='method_call',"
-                        "interface='org.freedesktop.Notifications',"
-                        "member='Notify',"
-                        "eavesdrop='true'"
-                    ],
-                )
-            )
-
-            def on_message(msg: Message) -> None:
-                if (
-                    msg.message_type == MessageType.METHOD_CALL
-                    and msg.member == "Notify"
-                    and msg.body
-                ):
-                    app_name = str(msg.body[0]) if len(msg.body) > 0 else ""
-                    summary = str(msg.body[3]) if len(msg.body) > 3 else ""
-                    body = str(msg.body[4]) if len(msg.body) > 4 else ""
-                    app_lower = app_name.lower()
-
-                    # Match Slack app directly, or browser notifications about Slack
-                    is_slack = (
-                        "slack" in app_lower
-                        or (
-                            app_lower in ("google chrome", "chrome", "chromium", "firefox")
-                            and "slack" in summary.lower()
-                        )
-                    )
-                    if not is_slack:
-                        return
-
-                    # In DND mode, silently ignore new notifications
-                    if self._dnd_active:
-                        logger.debug("Slack DND active, ignoring: %s", summary[:30])
-                        return
-
-                    self._dbus_count += 1
-                    # Strip HTML tags from browser notifications
-                    summary = _strip_html(summary)
-                    body = _strip_html(body)
-                    # Extract actual message from Chrome body (format: "url\n\nmessage")
-                    body = _extract_chrome_body(body)
-                    self._dbus_last_summary = summary
-                    # Channel: use summary (e.g. "Nouveau message de X")
-                    channel = summary[:30].strip() if summary else "Slack"
-                    self._dbus_last_channel = channel
-                    if channel:
-                        self._channels[channel] = self._channels.get(channel, 0) + 1
-                    self._last_activity = time.time()
-                    self._dbus_messages.append({
-                        "summary": summary,
-                        "body": body[:100],
-                        "time": time.time(),
-                        "channel": channel,
-                    })
-                    logger.info("Slack notification [%s]: %s - %s", app_name, summary, body[:50])
-                    # Push state immediately — don't wait for next poll cycle
-                    self.notify_state_changed()
-
-            bus.add_message_handler(on_message)
-            await asyncio.get_event_loop().create_future()
-
         except ImportError:
             logger.error("dbus-next not installed, Slack D-Bus monitoring unavailable")
-        except Exception:
-            logger.exception("D-Bus monitoring failed")
+            return
+
+        while True:
+            try:
+                bus = await MessageBus().connect()
+
+                await bus.call(
+                    Message(
+                        destination="org.freedesktop.DBus",
+                        path="/org/freedesktop/DBus",
+                        interface="org.freedesktop.DBus",
+                        member="AddMatch",
+                        signature="s",
+                        body=[
+                            "type='method_call',"
+                            "interface='org.freedesktop.Notifications',"
+                            "member='Notify',"
+                            "eavesdrop='true'"
+                        ],
+                    )
+                )
+
+                def on_message(msg: Message) -> None:
+                    if (
+                        msg.message_type == MessageType.METHOD_CALL
+                        and msg.member == "Notify"
+                        and msg.body
+                    ):
+                        app_name = str(msg.body[0]) if len(msg.body) > 0 else ""
+                        summary = str(msg.body[3]) if len(msg.body) > 3 else ""
+                        body = str(msg.body[4]) if len(msg.body) > 4 else ""
+                        app_lower = app_name.lower()
+
+                        # Match Slack app directly, or browser notifications about Slack
+                        is_slack = (
+                            "slack" in app_lower
+                            or (
+                                app_lower in ("google chrome", "chrome", "chromium", "firefox")
+                                and "slack" in summary.lower()
+                            )
+                        )
+                        if not is_slack:
+                            return
+
+                        # In DND mode, silently ignore new notifications
+                        if self._dnd_active:
+                            logger.debug("Slack DND active, ignoring: %s", summary[:30])
+                            return
+
+                        self._dbus_count += 1
+                        # Strip HTML tags from browser notifications
+                        summary = _strip_html(summary)
+                        body = _strip_html(body)
+                        # Extract actual message from Chrome body (format: "url\n\nmessage")
+                        body = _extract_chrome_body(body)
+                        self._dbus_last_summary = summary
+                        # Channel: use summary (e.g. "Nouveau message de X")
+                        channel = summary[:30].strip() if summary else "Slack"
+                        self._dbus_last_channel = channel
+                        if channel:
+                            self._channels[channel] = self._channels.get(channel, 0) + 1
+                        self._last_activity = time.time()
+                        self._dbus_messages.append({
+                            "summary": summary,
+                            "body": body[:100],
+                            "time": time.time(),
+                            "channel": channel,
+                        })
+                        logger.info("Slack notification [%s]: %s - %s", app_name, summary, body[:50])
+                        # Push state immediately — don't wait for next poll cycle
+                        self.notify_state_changed()
+
+                bus.add_message_handler(on_message)
+                logger.info("Slack: D-Bus monitoring connected")
+                await asyncio.get_event_loop().create_future()
+
+            except Exception:
+                logger.exception("D-Bus monitoring failed, reconnecting in 10s")
+                await asyncio.sleep(10)
 
     def _state_from_dbus(self) -> NotificationState:
         count = self._dbus_count
@@ -198,7 +203,7 @@ class SlackPlugin(BasePlugin):
         self._dbus_messages.clear()
         self._channels.clear()
 
-    async def on_press(self) -> None:
+    async def on_press(self, action: str = "") -> None:
         """Smart press: reset count > toggle DND on > toggle DND off."""
         if self._dbus_count > 0:
             # Has unread notifications — clear them
