@@ -237,6 +237,8 @@ class SpotifyPlugin(BasePlugin):
         return await loop.run_in_executor(None, self._fetch_metadata_sync)
 
     def _fetch_metadata_sync(self) -> dict[str, str]:
+        if not self._active_player:
+            return {}
         result = subprocess.run(
             [
                 "gdbus", "call", "--session",
@@ -254,6 +256,8 @@ class SpotifyPlugin(BasePlugin):
         return self._parse_metadata(result.stdout)
 
     def _dbus_method(self, method: str) -> None:
+        if not self._active_player:
+            return
         subprocess.run(
             [
                 "gdbus", "call", "--session",

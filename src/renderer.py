@@ -38,7 +38,7 @@ def render_button(
     y_offset = 4
 
     if icon:
-        icon_resized = icon.resize((28, 28), Image.LANCZOS)
+        icon_resized = icon.resize((28, 28), Image.Resampling.LANCZOS)
         x = (ICON_SIZE[0] - 28) // 2
         img.paste(icon_resized, (x, y_offset), icon_resized if icon_resized.mode == "RGBA" else None)
         y_offset += 30
@@ -48,7 +48,7 @@ def render_button(
     if display_label:
         font = _get_font(11)
         bbox = draw.textbbox((0, 0), display_label, font=font)
-        text_w = bbox[2] - bbox[0]
+        text_w = int(bbox[2] - bbox[0])
         x = (ICON_SIZE[0] - text_w) // 2
         draw.text((x, y_offset), display_label, fill=TEXT_WHITE, font=font)
         y_offset += 14
@@ -57,7 +57,7 @@ def render_button(
     if state.subtitle:
         font_small = _get_font(9)
         bbox = draw.textbbox((0, 0), state.subtitle, font=font_small)
-        text_w = bbox[2] - bbox[0]
+        text_w = int(bbox[2] - bbox[0])
         x = (ICON_SIZE[0] - text_w) // 2
         color = BADGE_RED if state.urgent else TEXT_DIM
         draw.text((x, y_offset), state.subtitle, fill=color, font=font_small)
@@ -67,7 +67,7 @@ def render_button(
         _draw_badge(draw, state.count)
 
     # Stream Deck displays images mirrored — flip horizontally
-    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+    img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
 
     # Convert to bytes
     buf = BytesIO()

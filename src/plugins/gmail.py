@@ -22,8 +22,8 @@ class GmailPlugin(BasePlugin):
     def __init__(self, config: dict):
         super().__init__(config)
         self._identity = config.get("identity")
-        self._goa_path = None
-        self._email = None
+        self._goa_path: str | None = None
+        self._email: str | None = None
 
     async def setup(self) -> None:
         from .goa import find_google_account
@@ -38,6 +38,8 @@ class GmailPlugin(BasePlugin):
     def _resolve_email(self) -> str | None:
         """Extract email from GOA account properties."""
         import subprocess
+        if not self._goa_path:
+            return None
         try:
             result = subprocess.run(
                 [
@@ -79,6 +81,8 @@ class GmailPlugin(BasePlugin):
     def _fetch_unread_imap(self) -> int:
         """Get unread message count via IMAP with XOAUTH2."""
         from .goa import get_access_token
+        if not self._goa_path or not self._email:
+            return 0
         token = get_access_token(self._goa_path)
         if not token:
             return 0

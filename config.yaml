@@ -120,3 +120,14 @@ plugins:
 
   spotify:
     # MPRIS2 D-Bus (auto-detects player: spotify, chrome, firefox, vlc)
+
+  disk: {}
+
+  load_avg:
+    warn: 4.0
+
+  uptime: {}
+
+  net_tx: {}
+
+  net_rx: {}

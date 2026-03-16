@@ -39,7 +39,7 @@ class BasePlugin(ABC):
         """Fetch current notification state. Called every refresh cycle."""
         ...
 
-    async def on_press(self) -> None:
+    async def on_press(self, action: str = "") -> None:
         """Called when the button is pressed. Override for custom behavior."""
 
     async def setup(self) -> None:

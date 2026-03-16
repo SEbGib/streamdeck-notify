@@ -9,6 +9,7 @@ from .docker_status import DockerStatusPlugin
 from .weather import WeatherPlugin
 from .system import SystemPlugin
 from .spotify import SpotifyPlugin
+from .system_detail import DiskPlugin, LoadAvgPlugin, UptimePlugin, NetTXPlugin, NetRXPlugin
 
 PLUGIN_REGISTRY: dict[str, type[BasePlugin]] = {
     "slack": SlackPlugin,
@@ -23,6 +24,11 @@ PLUGIN_REGISTRY: dict[str, type[BasePlugin]] = {
     "system_cpu": SystemPlugin,
     "system_ram": SystemPlugin,
     "spotify": SpotifyPlugin,
+    "disk": DiskPlugin,
+    "load_avg": LoadAvgPlugin,
+    "uptime": UptimePlugin,
+    "net_tx": NetTXPlugin,
+    "net_rx": NetRXPlugin,
 }
 
 __all__ = [

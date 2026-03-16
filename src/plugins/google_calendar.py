@@ -25,7 +25,7 @@ class GoogleCalendarPlugin(BasePlugin):
     def __init__(self, config: dict):
         super().__init__(config)
         self._identity = config.get("identity")  # Optional email filter
-        self._goa_path = None
+        self._goa_path: str | None = None
 
     async def setup(self) -> None:
         from .goa import find_google_account
@@ -82,6 +82,8 @@ class GoogleCalendarPlugin(BasePlugin):
 
     def _fetch_events(self) -> list[dict]:
         from .goa import get_access_token
+        if not self._goa_path:
+            return []
         token = get_access_token(self._goa_path)
         if not token:
             return []

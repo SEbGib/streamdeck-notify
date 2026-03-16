@@ -14,6 +14,7 @@ from .actions.MediaControlAction import MediaControlAction
 from .actions.MicMuteAction import MicMuteAction
 from .actions.VolumeAction import VolumeAction
 from .actions.PageSwitchAction import PageSwitchAction
+from .actions.SystemDetailAction import SystemDetailAction
 from .globals import Icons
 
 
@@ -145,6 +146,23 @@ class NotifyCenter(PluginBase):
             log.info("NotifyCenter: page-switch action holder added")
         except Exception as e:
             log.error(f"NotifyCenter: page-switch action holder failed: {e}")
+
+        try:
+            system_detail_action = ActionHolder(
+                plugin_base=self,
+                action_core=SystemDetailAction,
+                action_id_suffix="SystemDetailAction",
+                action_name="System Detail",
+                action_support={
+                    Input.Key: ActionInputSupport.SUPPORTED,
+                    Input.Dial: ActionInputSupport.UNSUPPORTED,
+                    Input.Touchscreen: ActionInputSupport.UNTESTED,
+                },
+            )
+            self.add_action_holder(system_detail_action)
+            log.info("NotifyCenter: system-detail action holder added")
+        except Exception as e:
+            log.error(f"NotifyCenter: system-detail action holder failed: {e}")
 
         self.register()
         log.info("NotifyCenter: register() done")
