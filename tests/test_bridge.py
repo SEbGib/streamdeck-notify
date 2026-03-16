@@ -10,13 +10,11 @@ Coverage targets:
 
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytest_asyncio
 import yaml
 from aiohttp.test_utils import TestClient
 
@@ -724,7 +722,6 @@ class TestBridgeInitPlugins:
 
     def test_unknown_plugin_skipped_gracefully(self, tmp_path: Path) -> None:
         """_init_plugins logs a warning but does not raise for unknown plugin names."""
-        import yaml
         from src.bridge import NotifyBridge
 
         cfg = {
@@ -740,9 +737,7 @@ class TestBridgeInitPlugins:
 
     def test_plugin_config_merged_with_button_config(self, tmp_path: Path) -> None:
         """Plugin-level config and button-level config are merged."""
-        import yaml
         from src.bridge import NotifyBridge
-        from src.plugins.slack import SlackPlugin
 
         cfg = {
             "deck": {"refresh_interval": 30},

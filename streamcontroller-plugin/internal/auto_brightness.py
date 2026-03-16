@@ -8,7 +8,6 @@ Schedule (with 30-minute linear transitions at each boundary):
 
 from __future__ import annotations
 
-import time
 from datetime import datetime
 
 from loguru import logger as log

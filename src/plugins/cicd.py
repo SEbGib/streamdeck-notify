@@ -73,7 +73,6 @@ class CICDPlugin(BasePlugin):
             return []
 
         # Fetch latest pipeline per project in parallel
-        loop = asyncio.get_event_loop()
         tasks = []
         for proj in projects:
             pid = proj.get("id")

@@ -69,7 +69,7 @@ class SlackPlugin(BasePlugin):
 
             bus = await MessageBus().connect()
 
-            reply = await bus.call(
+            await bus.call(
                 Message(
                     destination="org.freedesktop.DBus",
                     path="/org/freedesktop/DBus",
