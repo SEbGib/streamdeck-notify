@@ -18,6 +18,7 @@ import pytest
 import yaml
 from aiohttp.test_utils import TestClient
 
+from src.bridge import NotifyBridge
 from src.plugins.base import NotificationState
 from src.plugins.slack import SlackPlugin, _strip_html, _extract_chrome_body
 from src.plugins.gitlab import GitLabPlugin
@@ -709,6 +710,90 @@ class TestWeatherPlugin:
 
 
 # ===========================================================================
+# 10. GET /health
+# ===========================================================================
+
+class TestHealthEndpoint:
+    @pytest.mark.asyncio
+    async def test_returns_200(self, test_client: TestClient) -> None:
+        resp = await test_client.get("/health")
+        assert resp.status == 200
+
+    @pytest.mark.asyncio
+    async def test_content_type_is_json(self, test_client: TestClient) -> None:
+        resp = await test_client.get("/health")
+        assert "application/json" in resp.content_type
+
+    @pytest.mark.asyncio
+    async def test_status_ok(self, test_client: TestClient) -> None:
+        data = await (await test_client.get("/health")).json()
+        assert data["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_uptime_seconds_is_non_negative_int(self, test_client: TestClient) -> None:
+        data = await (await test_client.get("/health")).json()
+        assert isinstance(data["uptime_seconds"], int)
+        assert data["uptime_seconds"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_plugins_key_present(self, test_client: TestClient) -> None:
+        data = await (await test_client.get("/health")).json()
+        assert "plugins" in data
+        assert set(data["plugins"].keys()) == {"slack", "gitlab"}
+
+    @pytest.mark.asyncio
+    async def test_plugin_entry_has_required_keys(self, test_client: TestClient) -> None:
+        data = await (await test_client.get("/health")).json()
+        required = {"last_poll", "poll_count", "error_count"}
+        for name, entry in data["plugins"].items():
+            missing = required - set(entry.keys())
+            assert not missing, f"Plugin '{name}' health entry missing keys: {missing}"
+
+    @pytest.mark.asyncio
+    async def test_initial_last_poll_is_null(self, test_client: TestClient) -> None:
+        """Plugins that have never been polled via run_loop report last_poll as null."""
+        data = await (await test_client.get("/health")).json()
+        for name, entry in data["plugins"].items():
+            assert entry["last_poll"] is None, f"Plugin '{name}' should start with null last_poll"
+
+    @pytest.mark.asyncio
+    async def test_initial_poll_count_is_zero(self, test_client: TestClient) -> None:
+        data = await (await test_client.get("/health")).json()
+        for name, entry in data["plugins"].items():
+            assert entry["poll_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_initial_error_count_is_zero(self, test_client: TestClient) -> None:
+        data = await (await test_client.get("/health")).json()
+        for name, entry in data["plugins"].items():
+            assert entry["error_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_poll_count_increments_after_run_loop_poll(
+        self, test_client: TestClient, bridge_with_stubs: NotifyBridge
+    ) -> None:
+        """Simulate run_loop updating poll_count directly on the stub plugin."""
+        from datetime import datetime, timezone
+        stub: StubPlugin = bridge_with_stubs.plugins["slack"]
+        stub.poll_count = 5
+        stub.last_poll = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+        data = await (await test_client.get("/health")).json()
+        assert data["plugins"]["slack"]["poll_count"] == 5
+        assert data["plugins"]["slack"]["last_poll"] == "2025-01-01T12:00:00+00:00"
+
+    @pytest.mark.asyncio
+    async def test_error_count_reflected(
+        self, test_client: TestClient, bridge_with_stubs: NotifyBridge
+    ) -> None:
+        stub: StubPlugin = bridge_with_stubs.plugins["gitlab"]
+        stub.error_count = 3
+
+        data = await (await test_client.get("/health")).json()
+        assert data["plugins"]["gitlab"]["error_count"] == 3
+
+
+# ===========================================================================
 # 10. Bridge _init_plugins (unit — no file I/O beyond config)
 # ===========================================================================
 
@@ -751,3 +836,187 @@ class TestBridgeInitPlugins:
         slack: SlackPlugin = bridge.plugins["slack"]  # type: ignore[assignment]
         assert slack.method == "api"
         assert slack.config.get("token") == "xoxb-test"
+
+
+# ===========================================================================
+# 11. GET /history
+# ===========================================================================
+
+class TestHistoryEndpoint:
+    @pytest.mark.asyncio
+    async def test_returns_200(self, test_client: TestClient) -> None:
+        resp = await test_client.get("/history")
+        assert resp.status == 200
+
+    @pytest.mark.asyncio
+    async def test_content_type_is_json(self, test_client: TestClient) -> None:
+        resp = await test_client.get("/history")
+        assert "application/json" in resp.content_type
+
+    @pytest.mark.asyncio
+    async def test_top_level_key_is_events(self, test_client: TestClient) -> None:
+        data = await (await test_client.get("/history")).json()
+        assert "events" in data
+        assert isinstance(data["events"], list)
+
+    @pytest.mark.asyncio
+    async def test_empty_when_no_history(self, test_client: TestClient) -> None:
+        """No run_loop called — plugins have no history entries."""
+        data = await (await test_client.get("/history")).json()
+        assert data["events"] == []
+
+    @pytest.mark.asyncio
+    async def test_events_contain_required_keys(
+        self, test_client: TestClient, bridge_with_stubs: NotifyBridge
+    ) -> None:
+        stub: StubPlugin = bridge_with_stubs.plugins["slack"]
+        stub._history = [
+            {
+                "timestamp": "2025-01-01T10:00:00+00:00",
+                "source": "StubPlugin",
+                "label": "Slack",
+                "subtitle": "hi",
+                "count": 1,
+                "urgent": False,
+            }
+        ]
+        data = await (await test_client.get("/history")).json()
+        event = data["events"][0]
+        required = {"timestamp", "source", "label", "subtitle", "count", "urgent", "plugin"}
+        assert required <= set(event.keys())
+
+    @pytest.mark.asyncio
+    async def test_events_sorted_newest_first(
+        self, test_client: TestClient, bridge_with_stubs: NotifyBridge
+    ) -> None:
+        stub: StubPlugin = bridge_with_stubs.plugins["slack"]
+        stub._history = [
+            {"timestamp": "2025-01-01T08:00:00+00:00", "source": "S", "label": "A", "subtitle": "", "count": 0, "urgent": False},
+            {"timestamp": "2025-01-01T10:00:00+00:00", "source": "S", "label": "B", "subtitle": "", "count": 1, "urgent": False},
+            {"timestamp": "2025-01-01T09:00:00+00:00", "source": "S", "label": "C", "subtitle": "", "count": 2, "urgent": False},
+        ]
+        data = await (await test_client.get("/history")).json()
+        timestamps = [e["timestamp"] for e in data["events"]]
+        assert timestamps == sorted(timestamps, reverse=True)
+
+    @pytest.mark.asyncio
+    async def test_events_include_plugin_key(
+        self, test_client: TestClient, bridge_with_stubs: NotifyBridge
+    ) -> None:
+        stub: StubPlugin = bridge_with_stubs.plugins["gitlab"]
+        stub._history = [
+            {"timestamp": "2025-01-01T12:00:00+00:00", "source": "StubPlugin", "label": "GitLab", "subtitle": "", "count": 2, "urgent": True},
+        ]
+        data = await (await test_client.get("/history")).json()
+        gitlab_events = [e for e in data["events"] if e.get("plugin") == "gitlab"]
+        assert len(gitlab_events) == 1
+
+    @pytest.mark.asyncio
+    async def test_source_filter_by_plugin_key(
+        self, test_client: TestClient, bridge_with_stubs: NotifyBridge
+    ) -> None:
+        bridge_with_stubs.plugins["slack"]._history = [
+            {"timestamp": "2025-01-01T10:00:00+00:00", "source": "StubPlugin", "label": "Slack", "subtitle": "", "count": 1, "urgent": False},
+        ]
+        bridge_with_stubs.plugins["gitlab"]._history = [
+            {"timestamp": "2025-01-01T11:00:00+00:00", "source": "StubPlugin", "label": "GitLab", "subtitle": "", "count": 2, "urgent": True},
+        ]
+        data = await (await test_client.get("/history?source=slack")).json()
+        assert all(e["plugin"] == "slack" for e in data["events"])
+        assert len(data["events"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_source_filter_returns_empty_for_unknown(
+        self, test_client: TestClient, bridge_with_stubs: NotifyBridge
+    ) -> None:
+        bridge_with_stubs.plugins["slack"]._history = [
+            {"timestamp": "2025-01-01T10:00:00+00:00", "source": "StubPlugin", "label": "Slack", "subtitle": "", "count": 1, "urgent": False},
+        ]
+        data = await (await test_client.get("/history?source=nonexistent")).json()
+        assert data["events"] == []
+
+    @pytest.mark.asyncio
+    async def test_merges_history_from_multiple_plugins(
+        self, test_client: TestClient, bridge_with_stubs: NotifyBridge
+    ) -> None:
+        bridge_with_stubs.plugins["slack"]._history = [
+            {"timestamp": "2025-01-01T10:00:00+00:00", "source": "S", "label": "Slack", "subtitle": "", "count": 1, "urgent": False},
+        ]
+        bridge_with_stubs.plugins["gitlab"]._history = [
+            {"timestamp": "2025-01-01T11:00:00+00:00", "source": "G", "label": "GitLab", "subtitle": "", "count": 2, "urgent": True},
+        ]
+        data = await (await test_client.get("/history")).json()
+        assert len(data["events"]) == 2
+        # Newest first: gitlab then slack
+        assert data["events"][0]["plugin"] == "gitlab"
+        assert data["events"][1]["plugin"] == "slack"
+
+
+# ===========================================================================
+# 12. BasePlugin._record_history (unit)
+# ===========================================================================
+
+class TestBasePluginHistory:
+    def _make_stub(self) -> "StubPlugin":
+        from tests.conftest import StubPlugin
+        return StubPlugin({})
+
+    def test_record_history_appends_entry(self) -> None:
+        stub = self._make_stub()
+        from src.plugins.base import NotificationState
+        state = NotificationState(count=2, label="X", subtitle="y", urgent=True)
+        stub._record_history(state)
+        assert len(stub._history) == 1
+        entry = stub._history[0]
+        assert entry["count"] == 2
+        assert entry["label"] == "X"
+        assert entry["subtitle"] == "y"
+        assert entry["urgent"] is True
+        assert "timestamp" in entry
+        assert "source" in entry
+
+    def test_record_history_caps_at_50(self) -> None:
+        from src.plugins.base import NotificationState, HISTORY_MAX
+        stub = self._make_stub()
+        for i in range(60):
+            stub._record_history(NotificationState(count=i, label=str(i)))
+        assert len(stub._history) == HISTORY_MAX
+        # Most recent (last 50) are kept
+        assert stub._history[-1]["count"] == 59
+
+    def test_record_history_timestamp_is_iso8601(self) -> None:
+        from src.plugins.base import NotificationState
+        from datetime import datetime
+        stub = self._make_stub()
+        stub._record_history(NotificationState())
+        dt = datetime.fromisoformat(stub._history[0]["timestamp"])
+        assert dt.tzinfo is not None
+
+    @pytest.mark.asyncio
+    async def test_run_loop_records_on_state_change(self) -> None:
+        """run_loop records a history entry when the state actually changes."""
+        from src.plugins.base import NotificationState
+        from tests.conftest import StubPlugin
+
+        initial = NotificationState(count=0, label="A")
+        stub = StubPlugin({}, initial)
+
+        changed = NotificationState(count=1, label="B")
+        call_count = 0
+
+        async def changing_poll() -> NotificationState:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return initial
+            stub._running = False  # stop after second poll
+            return changed
+
+        stub.poll = changing_poll  # type: ignore[method-assign]
+
+        import asyncio
+        await asyncio.wait_for(stub.run_loop(0), timeout=2)
+
+        # Second poll returned a different state → one history entry
+        assert len(stub._history) == 1
+        assert stub._history[0]["count"] == 1

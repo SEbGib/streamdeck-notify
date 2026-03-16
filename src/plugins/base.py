@@ -6,8 +6,11 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
+
+HISTORY_MAX = 50
 
 
 @dataclass
@@ -33,6 +36,10 @@ class BasePlugin(ABC):
         self.config = config
         self.state = NotificationState()
         self._running = False
+        self.poll_count: int = 0
+        self.error_count: int = 0
+        self.last_poll: datetime | None = None
+        self._history: list[dict] = []
 
     @abstractmethod
     async def poll(self) -> NotificationState:
@@ -64,10 +71,27 @@ class BasePlugin(ABC):
         except Exception:
             pass
 
+    def _record_history(self, state: NotificationState) -> None:
+        """Append a history entry for a state transition (capped at HISTORY_MAX)."""
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": self.__class__.__name__,
+            "label": state.label,
+            "subtitle": state.subtitle,
+            "count": state.count,
+            "urgent": state.urgent,
+        }
+        self._history.append(entry)
+        if len(self._history) > HISTORY_MAX:
+            self._history = self._history[-HISTORY_MAX:]
+
     async def _refresh_state(self) -> None:
         """Immediate state refresh triggered by notify_state_changed."""
         try:
-            self.state = await self.poll()
+            new_state = await self.poll()
+            if new_state.to_dict() != self.state.to_dict():
+                self._record_history(new_state)
+            self.state = new_state
         except Exception:
             logger.exception("Immediate refresh error in %s", self.__class__.__name__)
 
@@ -77,8 +101,14 @@ class BasePlugin(ABC):
         await self.setup()
         while self._running:
             try:
-                self.state = await self.poll()
+                new_state = await self.poll()
+                if new_state.to_dict() != self.state.to_dict():
+                    self._record_history(new_state)
+                self.state = new_state
+                self.poll_count += 1
+                self.last_poll = datetime.now(timezone.utc)
             except Exception:
+                self.error_count += 1
                 logger.exception("Poll error in %s", self.__class__.__name__)
             await asyncio.sleep(interval)
 

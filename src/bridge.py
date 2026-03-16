@@ -39,6 +39,7 @@ class NotifyBridge:
         self._tasks: list[asyncio.Task] = []
         self._sse_clients: list[web.StreamResponse] = []
         self._last_states: dict[str, dict] = {}
+        self._start_time: datetime = datetime.now(timezone.utc)
 
     def _init_plugins(self) -> None:
         """Initialize plugins from config.
@@ -78,6 +79,39 @@ class NotifyBridge:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         return web.json_response(data)
+
+    async def handle_health(self, request: web.Request) -> web.Response:
+        """GET /health — bridge liveness and per-plugin poll stats."""
+        uptime = int((datetime.now(timezone.utc) - self._start_time).total_seconds())
+        plugins = {
+            name: {
+                "last_poll": plugin.last_poll.isoformat() if plugin.last_poll else None,
+                "poll_count": plugin.poll_count,
+                "error_count": plugin.error_count,
+            }
+            for name, plugin in self.plugins.items()
+        }
+        return web.json_response({"status": "ok", "uptime_seconds": uptime, "plugins": plugins})
+
+    async def handle_history(self, request: web.Request) -> web.Response:
+        """GET /history — state-change history across all plugins, newest first.
+
+        Optional query param ``?source=<name>`` filters by plugin key or class name.
+        """
+        source_filter = request.query.get("source", "").lower()
+
+        events: list[dict] = []
+        for name, plugin in self.plugins.items():
+            for entry in plugin._history:
+                if source_filter and source_filter not in (
+                    name.lower(),
+                    entry["source"].lower(),
+                ):
+                    continue
+                events.append({**entry, "plugin": name})
+
+        events.sort(key=lambda e: e["timestamp"], reverse=True)
+        return web.json_response({"events": events})
 
     async def handle_action(self, request: web.Request) -> web.Response:
         """POST /action/{name}?action=xxx — trigger on_press for a plugin."""
@@ -171,6 +205,8 @@ class NotifyBridge:
         # Setup HTTP server
         app = web.Application()
         app.router.add_get("/status", self.handle_status)
+        app.router.add_get("/health", self.handle_health)
+        app.router.add_get("/history", self.handle_history)
         app.router.add_get("/events", self.handle_events)
         app.router.add_post("/action/{name}", self.handle_action)
 
