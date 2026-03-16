@@ -43,10 +43,11 @@ def switch_to_page(page_name: str, deck_controller) -> None:
         dc.active_page = page
         dc.clear_media_player_tasks()
 
-        # Load page content directly (not via media player tasks)
-        dc.load_background(page, update=False)
+        # Load page content — update=True forces immediate render of all keys
+        # (clears stale images from previous page on empty slots)
+        dc.load_background(page, update=True)
         dc.load_brightness(page)
-        dc.load_all_inputs(page, update=False)
+        dc.load_all_inputs(page, update=True)
 
         # Only call on_ready for NEW actions (first load)
         # Returning pages already have state — just re-render
@@ -65,6 +66,9 @@ def switch_to_page(page_name: str, deck_controller) -> None:
 
         for t in threads:
             t.join(timeout=3.0)
+
+        # Flush stale image_tasks from previous page's in-flight on_tick
+        dc.clear_media_player_tasks()
 
         # Re-render all keys — uses stored action state
         dc.update_all_inputs()
