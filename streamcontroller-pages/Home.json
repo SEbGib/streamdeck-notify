@@ -1,0 +1,441 @@
+{
+  "brightness": {
+    "value": 75
+  },
+  "background": {
+    "overwrite": true,
+    "path": null
+  },
+  "keys": {
+    "0x0": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "gitlab",
+                "action_url": "https://gitlab.com/dashboard/merge_requests"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "1x0": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "google_calendar",
+                "action_url": "https://calendar.google.com",
+                "_page_switch_hold": "Meeting"
+              },
+              "event-assignments": {
+                "Key Down": null,
+                "Key Up": null,
+                "Key Short Up": "open-notification",
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "2x0": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "gmail",
+                "action_url": "https://mail.google.com"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "3x0": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "slack",
+                "action_url": "https://app.slack.com/client/T07UGUMK1F1"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "4x0": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "github",
+                "action_url": "https://github.com/notifications"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "0x1": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "cicd",
+                "action_url": "https://gitlab.com/dashboard/pipelines"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "1x1": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "docker"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "2x1": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "weather"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "3x1": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "system_cpu",
+                "_page_switch_hold": "System"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "4x1": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "system_ram",
+                "_page_switch_hold": "System"
+              },
+              "event-assignments": {
+                "Key Down": "open-notification",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "0x2": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::MediaControlAction",
+              "settings": {
+                "action": "previous"
+              },
+              "event-assignments": {
+                "Key Down": "media-control",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": null,
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "1x2": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::NotifyAction",
+              "settings": {
+                "source": "spotify",
+                "_page_switch_hold": "Music"
+              },
+              "event-assignments": {
+                "Key Down": null,
+                "Key Up": null,
+                "Key Short Up": "open-notification",
+                "Key Hold Start": "reset-notification",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "2x2": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::MediaControlAction",
+              "settings": {
+                "action": "next"
+              },
+              "event-assignments": {
+                "Key Down": "media-control",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": null,
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "3x2": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::PomodoroAction",
+              "settings": {},
+              "event-assignments": {
+                "Key Down": "pomodoro-toggle",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": "pomodoro-reset",
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    },
+    "4x2": {
+      "states": {
+        "0": {
+          "actions": [
+            {
+              "id": "com_sgiband_NotifyCenter::PageSwitchAction",
+              "settings": {
+                "target_page": "Page2",
+                "icon": "page_next",
+                "label": "Page 2"
+              },
+              "event-assignments": {
+                "Key Down": "page-switch",
+                "Key Up": null,
+                "Key Short Up": null,
+                "Key Hold Start": null,
+                "Key Hold Stop": null
+              }
+            }
+          ],
+          "image-control-action": 0,
+          "label-control-actions": [
+            0,
+            0,
+            0
+          ],
+          "background-control-action": 0
+        }
+      }
+    }
+  }
+}

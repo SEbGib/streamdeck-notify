@@ -1,0 +1,254 @@
+{
+    "brightness": {
+        "value": 75
+    },
+    "background": {
+        "overwrite": true,
+        "path": null
+    },
+    "keys": {
+        "0x0": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::SystemDetailAction",
+                            "settings": {
+                                "source": "system_cpu"
+                            },
+                            "event-assignments": {
+                                "Key Down": "system-detail-refresh",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": null,
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "1x0": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::SystemDetailAction",
+                            "settings": {
+                                "source": "system_ram"
+                            },
+                            "event-assignments": {
+                                "Key Down": "system-detail-refresh",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": null,
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "2x0": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::SystemDetailAction",
+                            "settings": {
+                                "source": "load_avg"
+                            },
+                            "event-assignments": {
+                                "Key Down": "system-detail-refresh",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": null,
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "3x0": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::SystemDetailAction",
+                            "settings": {
+                                "source": "uptime"
+                            },
+                            "event-assignments": {
+                                "Key Down": "system-detail-refresh",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": null,
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "4x0": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::SystemDetailAction",
+                            "settings": {
+                                "source": "disk"
+                            },
+                            "event-assignments": {
+                                "Key Down": "system-detail-refresh",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": null,
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "0x1": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::NotifyAction",
+                            "settings": {
+                                "source": "docker"
+                            },
+                            "event-assignments": {
+                                "Key Down": "open-notification",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": "reset-notification",
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "1x1": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::NotifyAction",
+                            "settings": {
+                                "source": "cicd",
+                                "action_url": "https://gitlab.com/dashboard/pipelines"
+                            },
+                            "event-assignments": {
+                                "Key Down": "open-notification",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": "reset-notification",
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "2x1": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::SystemDetailAction",
+                            "settings": {
+                                "source": "net_tx"
+                            },
+                            "event-assignments": {
+                                "Key Down": "system-detail-refresh",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": null,
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "3x1": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::SystemDetailAction",
+                            "settings": {
+                                "source": "net_rx"
+                            },
+                            "event-assignments": {
+                                "Key Down": "system-detail-refresh",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": null,
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        },
+        "4x2": {
+            "states": {
+                "0": {
+                    "actions": [
+                        {
+                            "id": "com_sgiband_NotifyCenter::PageSwitchAction",
+                            "settings": {
+                                "target_page": "Home",
+                                "icon": "page_next",
+                                "label": "Home"
+                            },
+                            "event-assignments": {
+                                "Key Down": "page-switch",
+                                "Key Up": null,
+                                "Key Short Up": null,
+                                "Key Hold Start": null,
+                                "Key Hold Stop": null
+                            }
+                        }
+                    ],
+                    "image-control-action": 0,
+                    "label-control-actions": [0, 0, 0],
+                    "background-control-action": 0
+                }
+            }
+        }
+    }
+}
