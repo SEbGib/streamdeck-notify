@@ -26,6 +26,7 @@ from src.backend.PluginManager.EventAssigner import EventAssigner
 
 from ..globals import SOURCES, SOURCE_NAMES, SOURCE_URLS, SOURCE_ICONS
 from ..internal.bridge_client import BridgeClient
+from ..internal.page_switch import switch_to_page
 
 SOURCE_LIST = list(SOURCES.items())  # [("slack", ("Slack", url, icon)), ...]
 
@@ -241,74 +242,10 @@ class NotifyAction(ActionCore):
             NotifyAction._page_switch_active = False
             NotifyAction._meeting_dismissed = False
 
-    @staticmethod
-    def _safe_on_ready(action):
-        """Call on_ready in a thread, catching all errors."""
-        name = action.__class__.__name__
-        source = getattr(action, '_source', '?')
-        try:
-            action.on_ready()
-            log.info(f"on_ready OK: {name}({source})")
-        except Warning as w:
-            log.warning(f"on_ready WARNING: {name}({source}): {w}")
-        except Exception as e:
-            log.warning(f"on_ready FAIL: {name}({source}): {e}")
-        except BaseException as e:
-            log.error(f"on_ready CRASH: {name}({source}): {type(e).__name__}: {e}")
-
     def _switch_page(self, page_name: str):
         """Switch the deck to a named page."""
         import threading
-        threading.Timer(0.05, self._do_switch_page, args=[page_name]).start()
-
-    def _do_switch_page(self, page_name: str):
-        try:
-            import globals as gl
-            import time
-            import threading
-
-            page_path = gl.page_manager.get_best_page_path_match_from_name(page_name)
-            if page_path is None:
-                log.warning(f"Page '{page_name}' not found")
-                return
-            page = gl.page_manager.get_page(page_path, self.deck_controller)
-            dc = self.deck_controller
-
-            # Synchronized clear — waits for current media player tick to finish
-            dc.active_page = page
-            dc.clear_media_player_tasks()
-
-            # Load page content directly (not via media player tasks)
-            dc.load_background(page, update=False)
-            dc.load_brightness(page)
-            dc.load_all_inputs(page, update=False)
-
-            # Only call on_ready for NEW actions (first load)
-            # Returning pages already have state — just re-render
-            threads = []
-            for action in page.get_all_actions():
-                if hasattr(action, "on_ready") and not action.on_ready_called:
-                    action.load_event_overrides()
-                    action.on_ready_called = True
-                    t = threading.Thread(
-                        target=self._safe_on_ready,
-                        args=(action,),
-                        daemon=True,
-                    )
-                    t.start()
-                    threads.append(t)
-
-            for t in threads:
-                t.join(timeout=3.0)
-
-            # Re-render all keys — uses stored action state
-            dc.update_all_inputs()
-            time.sleep(0.3)
-            dc.update_all_inputs()
-
-            log.info(f"Switched to page: {page_name}")
-        except Exception as e:
-            log.error(f"Page switch error: {e}")
+        threading.Timer(0.05, switch_to_page, args=[page_name, self.deck_controller]).start()
 
     def _resolve_icon(self):
         """Find the icon file for the current source."""

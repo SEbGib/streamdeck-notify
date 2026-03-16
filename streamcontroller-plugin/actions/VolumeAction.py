@@ -5,24 +5,19 @@ Uses wpctl (WirePlumber/PipeWire) via flatpak-spawn.
 
 from __future__ import annotations
 
-import subprocess
+from pathlib import Path
 
 from loguru import logger as log
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.ActionCore import ActionCore
 from src.backend.PluginManager.EventAssigner import EventAssigner
 
+from ..internal.host import host_run
+
 STEP = "5%"
-
-
-def _host_run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
-    """Run a command on the host via flatpak-spawn."""
-    return subprocess.run(
-        ["flatpak-spawn", "--host", "--directory=/"] + cmd,
-        capture_output=True, text=True, timeout=3, **kwargs,
-    )
+ASSETS = Path(__file__).parent.parent / "assets"
 
 
 class VolumeAction(ActionCore):
@@ -32,6 +27,7 @@ class VolumeAction(ActionCore):
         self.has_configuration = True
         self._direction: str = "up"
         self._volume_pct: int | None = None
+        self._icon: Image.Image | None = None
 
         self.add_event_assigner(EventAssigner(
             id="volume-control",
@@ -43,6 +39,10 @@ class VolumeAction(ActionCore):
     def on_ready(self):
         settings = self.get_settings()
         self._direction = settings.get("direction", "up")
+        icon_name = "volume_up" if self._direction == "up" else "volume_down"
+        icon_path = ASSETS / f"{icon_name}.png"
+        if icon_path.exists():
+            self._icon = Image.open(icon_path).convert("RGBA").resize((72, 72), Image.LANCZOS)
         log.info(f"VolumeAction ready: direction={self._direction!r}")
 
     def on_tick(self):
@@ -58,7 +58,7 @@ class VolumeAction(ActionCore):
         op = f"{STEP}+" if self._direction == "up" else f"{STEP}-"
         log.info(f"Volume: {op}")
         try:
-            result = _host_run(["wpctl", "set-volume", "-l", "1.0",
+            result = host_run(["wpctl", "set-volume", "-l", "1.0",
                                 "@DEFAULT_AUDIO_SINK@", op])
             if result.returncode != 0:
                 log.error(f"Volume set-volume failed: rc={result.returncode} stderr={result.stderr.strip()}")
@@ -72,7 +72,7 @@ class VolumeAction(ActionCore):
 
     def _poll_volume(self):
         try:
-            result = _host_run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
+            result = host_run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
             if result.returncode == 0:
                 # Output: "Volume: 0.75" or "Volume: 0.75 [MUTED]"
                 parts = result.stdout.strip().split()
@@ -88,29 +88,5 @@ class VolumeAction(ActionCore):
             self.set_bottom_label(f"{self._volume_pct}%")
         else:
             self.set_bottom_label("?")
-        self.set_media(image=_render_volume_icon(self._direction))
-
-
-def _render_volume_icon(direction: str) -> Image.Image:
-    """Render a speaker icon with up/down indicator."""
-    size = 72
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-
-    white = (255, 255, 255, 220)
-
-    # Speaker body
-    draw.rectangle([14, 26, 26, 46], fill=white)
-    draw.polygon([(26, 26), (40, 14), (40, 58), (26, 46)], fill=white)
-
-    # Sound waves
-    draw.arc([38, 20, 54, 52], start=-40, end=40, fill=white, width=2)
-    draw.arc([44, 14, 62, 58], start=-40, end=40, fill=white, width=2)
-
-    # Direction arrow
-    if direction == "up":
-        draw.polygon([(54, 8), (48, 18), (60, 18)], fill=(100, 220, 100, 220))
-    else:
-        draw.polygon([(54, 64), (48, 54), (60, 54)], fill=(220, 150, 50, 220))
-
-    return img
+        if self._icon:
+            self.set_media(image=self._icon)

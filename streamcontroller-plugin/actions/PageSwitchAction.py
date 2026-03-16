@@ -10,6 +10,8 @@ from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.ActionCore import ActionCore
 from src.backend.PluginManager.EventAssigner import EventAssigner
 
+from ..internal.page_switch import switch_to_page
+
 
 class PageSwitchAction(ActionCore):
 
@@ -41,64 +43,7 @@ class PageSwitchAction(ActionCore):
             return
         log.info(f"PageSwitch: navigating to {self._target_page!r}")
         import threading
-        threading.Timer(0.05, self._do_switch).start()
-
-    def _do_switch(self):
-        try:
-            import globals as gl
-            import time
-            import threading
-
-            page_path = gl.page_manager.get_best_page_path_match_from_name(self._target_page)
-            if page_path is None:
-                log.warning(f"Page '{self._target_page}' not found")
-                return
-            page = gl.page_manager.get_page(page_path, self.deck_controller)
-            dc = self.deck_controller
-
-            # Synchronized clear — waits for current media player tick to finish
-            dc.active_page = page
-            dc.clear_media_player_tasks()
-
-            # Load page content directly
-            dc.load_background(page, update=False)
-            dc.load_brightness(page)
-            dc.load_all_inputs(page, update=False)
-
-            # Only call on_ready for NEW actions (first load)
-            # Returning pages already have state — just re-render
-            threads = []
-            for action in page.get_all_actions():
-                if hasattr(action, "on_ready") and not action.on_ready_called:
-                    action.load_event_overrides()
-                    action.on_ready_called = True
-                    t = threading.Thread(
-                        target=self._safe_on_ready,
-                        args=(action,),
-                        daemon=True,
-                    )
-                    t.start()
-                    threads.append(t)
-
-            for t in threads:
-                t.join(timeout=3.0)
-
-            # Re-render all keys — uses stored action state
-            dc.update_all_inputs()
-            time.sleep(0.3)
-            dc.update_all_inputs()
-
-            log.info(f"PageSwitch: done switching to {self._target_page}")
-        except Exception as e:
-            log.error(f"PageSwitch error: {e}")
-
-    @staticmethod
-    def _safe_on_ready(action):
-        """Call on_ready in a thread, catching all errors."""
-        try:
-            action.on_ready()
-        except Exception as e:
-            log.warning(f"on_ready failed for {action.__class__.__name__}: {e}")
+        threading.Timer(0.05, switch_to_page, args=[self._target_page, self.deck_controller]).start()
 
     def _resolve_icon(self):
         icon_name = self.get_settings().get("icon", "page_next")
