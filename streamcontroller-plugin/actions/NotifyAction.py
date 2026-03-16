@@ -25,10 +25,13 @@ from src.backend.PluginManager.ActionCore import ActionCore
 from src.backend.PluginManager.EventAssigner import EventAssigner
 
 from ..globals import SOURCES, SOURCE_NAMES, SOURCE_URLS, SOURCE_ICONS
+from ..internal.auto_brightness import apply_auto_brightness
 from ..internal.bridge_client import BridgeClient
 from ..internal.page_switch import switch_to_page
 
 SOURCE_LIST = list(SOURCES.items())  # [("slack", ("Slack", url, icon)), ...]
+
+_last_brightness_check: float = 0.0  # module-level; shared across all instances
 
 BADGE_RED = "#FF3B30"
 BADGE_BG_URGENT = (80, 0, 0, 200)
@@ -56,6 +59,7 @@ class NotifyAction(ActionCore):
         self._meeting_active: bool = False
         self._ready_ts: float = 0
         self._force_next_render: bool = False
+        self._blink_state: bool = False
 
         self.create_event_assigners()
 
@@ -119,6 +123,13 @@ class NotifyAction(ActionCore):
 
     def on_tick(self):
         """Called every second by StreamController."""
+        global _last_brightness_check
+        import time as _time
+        _now = _time.time()
+        if _now - _last_brightness_check >= 300:  # every 5 minutes
+            _last_brightness_check = _now
+            apply_auto_brightness(self.deck_controller)
+
         if not self._source:
             return
         # Skip if this action's page is not the active page
@@ -134,6 +145,10 @@ class NotifyAction(ActionCore):
                 return
 
             self._bridge_down = False
+            urgent = state.get("urgent", False)
+            if urgent:
+                self._blink_state = not self._blink_state
+                self._force_next_render = True
             force = self._force_next_render
             if state != self._last_state or force:
                 self._force_next_render = False
@@ -286,8 +301,8 @@ class NotifyAction(ActionCore):
             if badge_count > 0:
                 icon = self._add_badge(icon, badge_count)
 
-            if urgent:
-                overlay = Image.new("RGBA", icon.size, BADGE_BG_URGENT)
+            if urgent and self._blink_state:
+                overlay = Image.new("RGBA", icon.size, (220, 0, 0, 210))
                 icon = Image.alpha_composite(icon, overlay)
 
             self.set_media(image=icon)
