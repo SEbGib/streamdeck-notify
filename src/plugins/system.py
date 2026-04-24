@@ -41,10 +41,7 @@ class SystemPlugin(BasePlugin):
         self._running = True
         await self.setup()
         while self._running:
-            try:
-                self.state = await self.poll()
-            except Exception:
-                logger.exception("Poll error in SystemPlugin")
+            await self._run_poll_cycle()
             await asyncio.sleep(self.POLL_INTERVAL)
 
     async def poll(self) -> NotificationState:

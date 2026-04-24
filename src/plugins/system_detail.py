@@ -35,10 +35,7 @@ class DiskPlugin(BasePlugin):
         self._running = True
         await self.setup()
         while self._running:
-            try:
-                self.state = await self.poll()
-            except Exception:
-                logger.exception("Poll error in DiskPlugin")
+            await self._run_poll_cycle()
             await asyncio.sleep(self.POLL_INTERVAL)
 
     async def poll(self) -> NotificationState:
@@ -86,10 +83,7 @@ class LoadAvgPlugin(BasePlugin):
         self._running = True
         await self.setup()
         while self._running:
-            try:
-                self.state = await self.poll()
-            except Exception:
-                logger.exception("Poll error in LoadAvgPlugin")
+            await self._run_poll_cycle()
             await asyncio.sleep(self.POLL_INTERVAL)
 
     async def poll(self) -> NotificationState:
@@ -131,10 +125,7 @@ class UptimePlugin(BasePlugin):
         self._running = True
         await self.setup()
         while self._running:
-            try:
-                self.state = await self.poll()
-            except Exception:
-                logger.exception("Poll error in UptimePlugin")
+            await self._run_poll_cycle()
             await asyncio.sleep(self.POLL_INTERVAL)
 
     async def poll(self) -> NotificationState:
@@ -209,10 +200,7 @@ class NetTXPlugin(BasePlugin):
         self._prev_tx = sum(tx for _, tx in stats.values())
         self._prev_ts = time.monotonic()
         while self._running:
-            try:
-                self.state = await self.poll()
-            except Exception:
-                logger.exception("Poll error in NetTXPlugin")
+            await self._run_poll_cycle()
             await asyncio.sleep(self.POLL_INTERVAL)
 
     async def poll(self) -> NotificationState:
@@ -258,10 +246,7 @@ class NetRXPlugin(BasePlugin):
         self._prev_rx = sum(rx for rx, _ in stats.values())
         self._prev_ts = time.monotonic()
         while self._running:
-            try:
-                self.state = await self.poll()
-            except Exception:
-                logger.exception("Poll error in NetRXPlugin")
+            await self._run_poll_cycle()
             await asyncio.sleep(self.POLL_INTERVAL)
 
     async def poll(self) -> NotificationState:

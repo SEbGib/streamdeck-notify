@@ -95,21 +95,25 @@ class BasePlugin(ABC):
         except Exception:
             logger.exception("Immediate refresh error in %s", self.__class__.__name__)
 
+    async def _run_poll_cycle(self) -> None:
+        """Execute one poll() with state/history/counters bookkeeping."""
+        try:
+            new_state = await self.poll()
+            if new_state.to_dict() != self.state.to_dict():
+                self._record_history(new_state)
+            self.state = new_state
+            self.poll_count += 1
+            self.last_poll = datetime.now(timezone.utc)
+        except Exception:
+            self.error_count += 1
+            logger.exception("Poll error in %s", self.__class__.__name__)
+
     async def run_loop(self, interval: int) -> None:
         """Main polling loop."""
         self._running = True
         await self.setup()
         while self._running:
-            try:
-                new_state = await self.poll()
-                if new_state.to_dict() != self.state.to_dict():
-                    self._record_history(new_state)
-                self.state = new_state
-                self.poll_count += 1
-                self.last_poll = datetime.now(timezone.utc)
-            except Exception:
-                self.error_count += 1
-                logger.exception("Poll error in %s", self.__class__.__name__)
+            await self._run_poll_cycle()
             await asyncio.sleep(interval)
 
     def stop(self) -> None:
